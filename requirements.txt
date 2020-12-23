@@ -1,0 +1,5 @@
+requests==2.22.0
+beautifulsoup4==4.7.1
+pymed==0.8.9
+pandas==1.1.4
+numpy==1.18.1
