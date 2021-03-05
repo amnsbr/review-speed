@@ -98,7 +98,7 @@ def get_article_url_and_publisher(doi_url):
     doi_res = requests.get(doi_url, headers=REQUESTS_AGENT_HEADERS)
     domain = urlparse(doi_res.url).netloc
     if domain=='doi.org':
-        raise ValueError("Unable to parse publisher and article url from the doi")
+        raise ValueError(f"Unable to parse publisher and article url from the doi url {doi_url}")
     publisher = domain.split('.')[1]
     #> For some publishers (elsevier) the redirection doesn't work properly, and
     #  we need another publisher-specific way to get to the article_url
@@ -121,13 +121,14 @@ def get_dates(doi_url):
     Returns
     ----------
     dates: (dict) datetime.datetime objs for three events (Received, Accepted, Published)
+    publisher: (str) publisher name (e.g. elsevier, tandfonline, etc.)
     """
     dates = {'Received': None, 'Accepted': None, 'Published': None}
     try:
         article_url, publisher = get_article_url_and_publisher(doi_url)
     except:
         print("Unable to parse publisher and article url from the doi")
-        return dates
+        return dates, None
     #> Get the HTML
     try:
         html = requests.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
@@ -160,4 +161,4 @@ def get_dates(doi_url):
             dates[EVENTS[event_idx]] = parsed_dates[event_idx]
     else:
         print(f"{publisher} not supported")
-    return dates
+    return dates, publisher
