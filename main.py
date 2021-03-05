@@ -4,19 +4,14 @@ from bs4 import BeautifulSoup
 import datetime
 import re
 from pymed import PubMed
-import pandas as pd
-import numpy as np
 
-pubmed = PubMed()
-
-DOI_BASE = 'https://doi.org/'
-HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"}
+REQUESTS_AGENT_HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"}
 EVENTS = ['Received', 'Accepted', 'Published']
 
 #TODO: move these to json files
 REGEX_PATTERNS = {
     'scielo':{
-        'Received': r'.*Revised:\n\t\t\t\t([a-zA-Z]+) (\d+), (\d+)', # this is an error from publisher, revised is actually received!
+        'Received': r'.*Received:\n\t\t\t\t([a-zA-Z]+) (\d+), (\d+)', # this is an error from publisher, revised is actually received!
         'Accepted': r'.*Accepted:\n\t\t\t\t([a-zA-Z]+) (\d+), (\d+)',
         'Published': None
     },
@@ -74,7 +69,7 @@ def datestr_tuple_to_datetime(datestr_tuple, pattern):
 ############# Publisher Specific Functions ###############
 ##########################################################
 def springer_get_dates(html):
-    soup = BeautifulSoup(html)
+    soup = BeautifulSoup(html, features='html.parser')
     time_elements = soup.findAll('time')
     if len(time_elements) == 4:
         received = datetime.datetime(*map(int, time_elements[1].attrs['datetime'].split('-')))
@@ -85,7 +80,7 @@ def springer_get_dates(html):
         return None, None, None
     
 def hindawi_get_dates(html):
-    soup = BeautifulSoup(html)
+    soup = BeautifulSoup(html, features='html.parser')
     if soup.find('span', string='Received'):
         received_str = soup.find('span', string='Received').parent.findAll('span')[-1].text
         received = datestr_tuple_to_datetime(received_str.split(' '), 'dbY')
@@ -106,7 +101,7 @@ SOAP_FUNCITONS = {
 ##########################################################
 #################### Main Functions ######################
 ##########################################################
-def get_journal_recent_article_urls(journal_abbr, max_results=50):
+def get_journal_recent_doi_urls(journal_abbr, max_results=50):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
@@ -117,15 +112,14 @@ def get_journal_recent_article_urls(journal_abbr, max_results=50):
 
     Returns
     ----------
-    urls: (list) a list of doi_urls
+    doi_urls: (list) a list of doi_urls
     """
     pubmed = PubMed()
-    DOI_BASE = 'https://doi.org/'
-    urls = []
+    doi_urls = []
     entries = pubmed.query(f"{journal_abbr}[jour]", max_results=max_results)
     for entry in entries:
-        urls.append(DOI_BASE + entry.doi)
-    return urls
+        doi_urls.append('https://doi.org/' + entry.doi)
+    return doi_urls
 
 def get_article_url_and_publisher(doi_url):
     """
@@ -141,7 +135,7 @@ def get_article_url_and_publisher(doi_url):
     publisher: (str) publisher name (e.g. elsevier, tandfonline, etc.)
     """
     #> Get the domain name
-    doi_res = requests.get(doi_url, headers=HEADERS)
+    doi_res = requests.get(doi_url, headers=REQUESTS_AGENT_HEADERS)
     domain = urlparse(doi_res.url).netloc
     publisher = domain.split('.')[1]
     #> For some publishers (elsevier) the redirection doesn't work properly, and
@@ -154,23 +148,23 @@ def get_article_url_and_publisher(doi_url):
         article_url = doi_res.url
     return article_url, publisher
 
-def get_dates(article_url, publisher):
+def get_dates(doi_url):
     """
     Uses Regex or BeautifulSoup to get the datetimes for received, accepted and published
     
     Parameters
     ----------
-    article_url: (str) the webpage containing the dates
-    publisher: (str) publisher name (e.g. elsevier, tandfonline, etc.)
+    doi_url: (str) url of the form https://doi.org/XXXX
 
     Returns
     ----------
     dates: (dict) datetime.datetime objs for three events (Received, Accepted, Published)
     """
+    article_url, publisher = get_article_url_and_publisher(doi_url)
     dates = {'Received': None, 'Accepted': None, 'Published': None}
     #> Get the HTML
     try:
-        html = requests.get(article_url, headers=headers).content.decode(errors='replace')
+        html = requests.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
     except:
         print("Unable to get article url page")
         return dates
@@ -201,41 +195,3 @@ def get_dates(article_url, publisher):
     else:
         print(f"{publisher} not supported")
     return dates
-
-def get_review_speed_df(journal_abbr, max_results=50):
-    """
-    Gets the review speed of recent articles in a journal
-
-    Parameters
-    ---------
-    journal_abbr: (str) journal abbreviation according to NLM catalog
-    max_results: (int) number of recent articles to retrieve
-
-
-    Returns
-    ---------
-    review_speed_df: (pd.DataFrame) submission, acceptance and publication date and their respective durations for each article
-    """
-    #> Initialize the DataFrame (doi_url will be the index)
-    review_speed_df = pd.DataFrame(columns=['Submit Date', 'Accept Date', 'Publish Date', 'Submit to Accept', 'Accept to Publish'])
-    #> Get doi urls
-    doi_urls = get_journal_recent_article_urls(journal_abbr, max_results=max_results)
-    print("Fetched Article URLs")
-    #> Loop through articles and save their dates
-    counter = 0
-    for doi_url in doi_urls:
-        counter += 1
-        article_url, publisher = get_article_url_and_publisher(doi_url)
-        review_dates = get_dates(article_url, publisher)
-        if (counter % 5 == 0):
-            print(counter)
-        review_speed_df.loc[doi_url, 'Submit Date'] = review_dates['Received']
-        review_speed_df.loc[doi_url, 'Accept Date'] = review_dates['Accepted']
-        review_speed_df.loc[doi_url, 'Publish Date'] = review_dates['Published']
-    #> Get the differences in the dates of submission, acceptance and publication
-    review_speed_df['Submit to Accept'] = (review_speed_df['Accept Date'] - review_speed_df['Submit Date'])
-    review_speed_df['Accept to Publish'] = (review_speed_df['Publish Date'] - review_speed_df['Accept Date'])
-    review_speed_df['Submit to Publish'] = (review_speed_df['Publish Date'] - review_speed_df['Submit Date'])
-    #> Convert doi_url to another column
-    review_speed_df.reset_index(drop=False).rename(columns={'index':'url'})
-    return review_speed_df
