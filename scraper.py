@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import datetime
 import re
-from pymed import PubMed
+from helpers import datestr_tuple_to_datetime
 
 REQUESTS_AGENT_HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"}
 EVENTS = ['Received', 'Accepted', 'Published']
@@ -46,26 +46,6 @@ DATESTR_PATTERNS = {
 }
 
 ##########################################################
-#################### Helper Functions ####################
-##########################################################
-def datestr_tuple_to_datetime(datestr_tuple, pattern):
-    """
-    Converts a tuple of date strings and their pattern to datetime obj
-    """
-    for datestr_idx in range(3):
-        if pattern[datestr_idx] == 'B': # Month name full
-            month = datetime.datetime.strptime(datestr_tuple[datestr_idx], '%B').month
-        elif pattern[datestr_idx] == 'b': # Month name short
-            month = datetime.datetime.strptime(datestr_tuple[datestr_idx], '%b').month
-        elif pattern[datestr_idx] == 'm':
-            month = int(datestr_tuple[datestr_idx])
-        elif pattern[datestr_idx] == 'd':
-            day = int(datestr_tuple[datestr_idx])
-        elif pattern[datestr_idx] == 'Y':
-            year = int(datestr_tuple[datestr_idx])
-    return datetime.datetime(year, month, day)
-
-##########################################################
 ############# Publisher Specific Functions ###############
 ##########################################################
 def springer_get_dates(html):
@@ -101,26 +81,6 @@ SOAP_FUNCITONS = {
 ##########################################################
 #################### Main Functions ######################
 ##########################################################
-def get_journal_recent_doi_urls(journal_abbr, max_results=50):
-    """
-    Uses PubMed to get the latest articles of a journal based on its name
-
-    Parameters
-    ----------
-    journal_abbr: (str) journal abbreviation according to NLM catalog
-    max_results: (int) number of recent articles to retrieve
-
-    Returns
-    ----------
-    doi_urls: (list) a list of doi_urls
-    """
-    pubmed = PubMed()
-    doi_urls = []
-    entries = pubmed.query(f"{journal_abbr}[jour]", max_results=max_results)
-    for entry in entries:
-        doi_urls.append('https://doi.org/' + entry.doi)
-    return doi_urls
-
 def get_article_url_and_publisher(doi_url):
     """
     Converts doi url to article url and returns the domain name as the publisher name
