@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.db-shm
+*.db-wal
 
 # C extensions
 *.so
@@ -109,6 +111,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+windows_venv/
 
 # Spyder project settings
 .spyderproject
