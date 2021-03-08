@@ -30,13 +30,40 @@ def add_article_to_db(doi_url, publisher, journal_abbr, dates, db=None):
     ----------
     None
     """
+    #> Connect to db if not already done
     if not db:
         db = dataset.connect(f'sqlite:///{DATASET_PATH}')
+    #> Add journal to db if it doesn't exist (TODO: this should be in fetch_journal_recent_articles_data)
+    if db['Journals'].count(journal_abbr=journal_abbr) == 0:
+        journal_fullname = '' # for now
+        add_journal_to_db(journal_abbr, journal_fullname, publisher, db=db)
+    #> Add article
     article_data = {'doi_url': doi_url,
                     'journal_abbr': journal_abbr,
                     'publisher': publisher}
     article_data.update(dates)
     db['Articles'].insert(article_data)
+
+def add_journal_to_db(journal_abbr, journal_fullname, publisher, db=None):
+    """
+    Adds journal to the database
+    
+    Parameters
+    ----------
+    journal_abbr: (str) journal abbreviation according to NLM catalog
+    journal_fullname: (str) journal full name according to NLM catalog (not used currently)
+    publisher: (str) publisher main domain name (e.g. elsevier, tandfonline, etc.)
+    Returns
+    ----------
+    None
+    """
+    if not db:
+        db = dataset.connect(f'sqlite:///{DATASET_PATH}')
+    journal_data = {'journal_abbr': journal_abbr,
+                    'journal_fullname': journal_fullname,
+                    'publisher': publisher}
+    db['Journals'].insert(journal_data)
+
 
 def get_journal_recent_doi_urls(journal_abbr, max_results=50):
     """
