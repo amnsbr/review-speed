@@ -1,5 +1,6 @@
 requests==2.22.0
 beautifulsoup4==4.7.1
+pony==0.7.14
 pymed
-dataset
+tldextract
 pytest

@@ -1,12 +1,13 @@
-from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
+import tldextract
 import datetime
 import re
 from helpers import datestr_tuple_to_datetime
 
 REQUESTS_AGENT_HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"}
 EVENTS = ['Received', 'Accepted', 'Published']
+DOI_BASE = 'https://doi.org/'
 
 #TODO: move these to json files
 REGEX_PATTERNS = {
@@ -15,7 +16,7 @@ REGEX_PATTERNS = {
         'Accepted': r'.*Accepted:\n\t\t\t\t([a-zA-Z]+) (\d+), (\d+)',
         'Published': None
     },
-    'elsevier': {
+    'sciencedirect': {
         'Received': r'.*"Received":"(\d+) ([a-zA-Z]+) (\d+)"',
         'Accepted': r'.*"Accepted":"(\d+) ([a-zA-Z]+) (\d+)"',
         'Published': r'.*"Publication date":"(\d+) ([a-zA-Z]+) (\d+)"'
@@ -39,7 +40,7 @@ REGEX_PATTERNS = {
 
 DATESTR_PATTERNS = {
     'scielo': 'BdY',
-    'elsevier': 'dBY',
+    'sciencedirect': 'dBY',
     'karger': 'BdY',
     'tandfonline': 'dbY',
     'viamedica': 'Ymd'
@@ -78,10 +79,12 @@ SOAP_FUNCITONS = {
     'hindawi': hindawi_get_dates,
 }
 
+SUPPORTED_DOMAINS = set(SOAP_FUNCITONS.keys()).union(set(REGEX_PATTERNS))
+
 ##########################################################
 #################### Main Functions ######################
 ##########################################################
-def get_article_url_and_publisher(doi_url):
+def get_article_url(doi):
     """
     Converts doi url to article url and returns the domain name as the publisher name
     
@@ -92,51 +95,49 @@ def get_article_url_and_publisher(doi_url):
     Returns
     ----------
     article_url: (str) url of the page that contains review dates
-    publisher: (str) publisher name (e.g. elsevier, tandfonline, etc.)
     """
     #> Get the domain name
+    doi_url = DOI_BASE + doi
     doi_res = requests.get(doi_url, headers=REQUESTS_AGENT_HEADERS)
-    domain = urlparse(doi_res.url).netloc
-    if domain=='doi.org':
-        raise ValueError(f"Unable to parse publisher and article url from the doi url {doi_url}")
-    publisher = domain.split('.')[1]
+    domain = tldextract.extract(doi_res.url).domain
     #> For some publishers (elsevier) the redirection doesn't work properly, and
     #  we need another publisher-specific way to get to the article_url
-    if publisher == 'elsevier':
+    if domain=='doi':
+        raise ValueError(f"Unable to parse article url from the doi {doi}")
+    elif domain == 'elsevier':
         sciencedirect_id = doi_res.url.split('/')[-1]
         article_url = 'https://www.sciencedirect.com/science/article/pii/' + sciencedirect_id
-    #> But otherwise, return the automatically redirected doi_url as the article_url
     else:
         article_url = doi_res.url
-    return article_url, publisher
+    return article_url
 
-def get_dates(doi_url):
+def get_dates(doi, publisher_domain):
     """
     Uses Regex or BeautifulSoup to get the datetimes for received, accepted and published
     
     Parameters
     ----------
-    doi_url: (str) url of the form https://doi.org/XXXX
+    doi: (str) article doi
+    publisher_domain: (str) publisher's domain name (e.g. sciencedirect, karger, etc.)
 
     Returns
     ----------
     dates: (dict) datetime.datetime objs for three events (Received, Accepted, Published)
-    publisher: (str) publisher name (e.g. elsevier, tandfonline, etc.)
     """
     dates = {'Received': None, 'Accepted': None, 'Published': None}
     try:
-        article_url, publisher = get_article_url_and_publisher(doi_url)
+        article_url = get_article_url(doi)
     except:
         print("Unable to parse publisher and article url from the doi")
-        return dates, None
+        return dates
     #> Get the HTML
     try:
         html = requests.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
     except:
         print("Unable to get article url page")
         return dates
-    regex_patterns = REGEX_PATTERNS.get(publisher)
-    soap_function = SOAP_FUNCITONS.get(publisher)
+    regex_patterns = REGEX_PATTERNS.get(publisher_domain)
+    soap_function = SOAP_FUNCITONS.get(publisher_domain)
     #> For some publishers we can use regex
     if regex_patterns:
         for event, regex in regex_patterns.items():
@@ -149,7 +150,7 @@ def get_dates(doi_url):
             else:
                 #> Convert the tuples to datetime objs based on publisher's datestr pattern,
                 #  e.g.: BdY (full month name, day, full year)
-                dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher])
+                dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
     #> For others we need specific functions for parsing the HTML
     # TODO: Technically these could also be written as regex patterns
     elif soap_function:
@@ -160,5 +161,5 @@ def get_dates(doi_url):
         for event_idx in range(3):
             dates[EVENTS[event_idx]] = parsed_dates[event_idx]
     else:
-        print(f"{publisher} not supported")
-    return dates, publisher
+        print(f"{publisher_domain} not supported")
+    return dates
