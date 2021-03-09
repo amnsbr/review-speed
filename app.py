@@ -23,7 +23,7 @@ db.generate_mapping(create_tables=True)
 
 with orm.db_session:
     journal_options = []
-    for journal in Journal.select(): #TODO select based on SubjectArea or SubjectCategory
+    for journal in Journal.select(lambda j: len(j.articles)>0):
         journal_options.append({'label': journal.abbr_name, 'value': journal.abbr_name})
 
 # App initialization and layout

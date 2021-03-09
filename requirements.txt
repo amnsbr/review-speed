@@ -7,3 +7,4 @@ dash-bootstrap-components==0.10.3
 pymed
 tldextract
 pytest
+gunicorn
