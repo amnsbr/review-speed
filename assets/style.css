@@ -1,0 +1,20 @@
+#date-picker-range {
+  display: block !important;
+  width: 100%;
+}
+
+.DateRangePickerInput__withBorder {
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.DateInput {
+  width: auto;
+}
+
+.DateInput_input {
+  font-size: medium;
+  font-weight: normal;
+  padding-left: 10px;
+}
+
