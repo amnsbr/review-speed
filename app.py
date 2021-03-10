@@ -18,6 +18,7 @@ from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, 
 
 # Connect to database
 DATASET_PATH = 'database.sqlite'
+STATIC_PLOT = True
 db.bind(provider='sqlite', filename=DATASET_PATH, create_db=True)
 db.generate_mapping(create_tables=True)
 
@@ -94,11 +95,15 @@ def plot_histogram(articles_df):
                        })
     graph = dcc.Graph(
                     id='histogram',
-                    figure=fig)
+                    figure=fig,
+                    config={
+                        'staticPlot': STATIC_PLOT,
+                    })
     return graph
 
 # Trend plot
 def plot_trend(articles_df):
+    DOI_BASE = 'https://doi.org/'
     articles_grouped_by_month = articles_df.set_index('published').groupby(pd.Grouper(freq='MS'))
     monthly_trend_median = articles_grouped_by_month['Submit to Accept'].median()
     # monthly_average_trend.index = monthly_average_trend.index.to_period('M')
@@ -108,7 +113,9 @@ def plot_trend(articles_df):
         y=articles_df['Submit to Accept'],
         x=articles_df['published'].apply(lambda x: datetime.datetime(x.year, x.month, 1)),
         # .to_period is not an option because plotly doesn't work with pd.Period
-        showlegend=False,
+        boxpoints=False,
+        name='Monthly Boxplot',
+        showlegend=True,
         hoverinfo='none'
     ))
 
@@ -126,18 +133,24 @@ def plot_trend(articles_df):
         y=articles_df['Submit to Accept'],
         x=articles_df['published'], 
         mode='markers',
-        name='Article',
-        text=articles_df['authors'][0],
-        showlegend=False
+        name='Articles',
+        text=articles_df['doi'],
+        showlegend=True
     ))
 
     fig.update_layout(
         xaxis_title="Date Published",
         yaxis_title="Submit to Accept (days)",
     )
+    fig.update_xaxes(
+        dtick="M1",
+        tickformat="%b\n%Y")
     graph = dcc.Graph(
         id="graph-trend",
         figure=fig,
+        config={
+            'staticPlot': STATIC_PLOT,
+            }
         )
     return graph
 
@@ -166,7 +179,9 @@ def update_options(search_value):
 
 # > Journal info view callback
 @app.callback(
-    [Output("summary-cards", "children"), Output("graphs", "children"), Output("numbers-note", "style")],
+    [Output("summary-cards", "children"), 
+     Output("graphs", "children"), 
+     Output("numbers-note", "style")],
     Input("journal-abbr-dropdown", "value"),
     Input("date-picker-range", "start_date"),
     Input("date-picker-range", "end_date")

@@ -2,7 +2,6 @@
 Functions for retrieving and storing the data for individual articles
 """
 from pymed import PubMed
-import sqlite3, dataset
 import requests
 from bs4 import BeautifulSoup
 import tldextract
@@ -219,12 +218,11 @@ def fetch_journal_recent_articles_data(journal_abbr, max_results=50, verbosity='
     entries = pubmed.query(f"{journal_abbr}[jour]", max_results=max_results)
     articles = []
     counter = 0
+    total_count = len(entries)
     for entry in entries:
         # > a quick fix for a bug in pymed (0.8.9), which sometimes returns a multiline list of dois
         # for a entry. And the first one is the real one
         doi = entry.doi.split('\n')[0]
-        if verbosity=='full':
-            print(doi)
         article = Article.get(doi=doi)
         if not article:
             journal=Journal.get(abbr_name=journal_abbr)
@@ -240,8 +238,13 @@ def fetch_journal_recent_articles_data(journal_abbr, max_results=50, verbosity='
                     published=dates['Published']
                 )
                 orm.commit()
+        else:
+            if verbosity=='full':
+                print("Already in database")
         articles.append(article)
         counter+=1
+        if verbosity=='full':
+            print(f'({counter} of {total_count}): {doi}')
         if (counter%5==0) and (verbosity=='summary'):
             print(counter)
 
