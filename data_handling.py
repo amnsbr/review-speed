@@ -13,7 +13,7 @@ import scraper
 from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, Article
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
-DATASET_PATH = 'database.sqlite'
+DATASET_PATH = 'database.sqlite (8).bak'
 
 # Connect to database
 # if not os.path.exists(DATASET_PATH):
@@ -167,7 +167,7 @@ def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
     return journal
 
 @orm.db_session
-def fetch_journals_info_from_scimago(subject_area_name, main_subject_category_name=None, verbosity='full'):
+def fetch_journals_info_from_scimago(subject_area_name=None, main_subject_category_name=None, verbosity='full'):
     """
     Fetch the journals list based on subject area and category from scimagojr
 
@@ -184,37 +184,47 @@ def fetch_journals_info_from_scimago(subject_area_name, main_subject_category_na
     """
     #> Generate the url based on area and category
     scimago_url = SCIMAGOJR_BASE
-    subject_area_code = SubjectArea.get(name=subject_area_name).scimago_code
-    scimago_url += f'?area={subject_area_code}'
-    if main_subject_category_name:
-        main_subject_category_code = SubjectCategory.get(name=main_subject_category_name).scimago_code
-        scimago_url += f'&category={main_subject_category_code}'
-    scimago_url += '&out=xls'
-    scimago_df = pd.read_csv(scimago_url, sep=";")
-    journals = []
-    for idx, row in scimago_df.iterrows():
-        issn_no_dash = row['Issn'].split(',')[0]
-        issn = issn_no_dash[:4] + '-' + issn_no_dash[4:]
-        if verbosity=='full':
-            print(f'({idx+1} of {scimago_df.shape[0]}) {issn}')
-        journal = fetch_journal_info_from_nlmcatalog(issn)
-        if journal: #journal is in nlmcatalogy
-            #> Add categories from scimago data
-            category_strs = row['Categories'].split(";")
-            subject_categories = []
-            for category_str in category_strs:
-                subject_category_name = category_str[:-5] # removing ' (Q1)'
-                subject_categories.append(
-                    SubjectCategory.get(name=subject_category_name)
-                )
-            journal.subject_categories = subject_categories
-            #> Add SJR from scimago data
-            try:
-                journal.sjr = float(row['SJR'].replace(',','.'))
-            except:
-                journal.sjr = None
-            orm.commit()
-            journals.append(journal)
+    #> Search all area names if no area name is specified
+    if not subject_area_name:
+        subject_area_names = [sa.name for sa in SubjectArea]
+    else:
+        subject_area_names = [subject_area_name]
+    for subject_area_name in subject_area_names:
+        subject_area_code = SubjectArea.get(name=subject_area_name).scimago_code
+        scimago_url += f'?area={subject_area_code}'
+        if main_subject_category_name:
+            main_subject_category_code = SubjectCategory.get(name=main_subject_category_name).scimago_code
+            scimago_url += f'&category={main_subject_category_code}'
+        scimago_url += '&out=xls'
+        scimago_df = pd.read_csv(scimago_url, sep=";")
+        journals = []
+        for idx, row in scimago_df.iterrows():
+            issn_no_dash = row['Issn'].split(',')[0]
+            if len(issn_no_dash) < 8:
+                if verbosity=='full':
+                    print('No (standard 8-digit) ISSN')
+                continue
+            issn = issn_no_dash[:4] + '-' + issn_no_dash[4:]
+            if verbosity=='full':
+                print(f'({idx+1} of {scimago_df.shape[0]}) {issn}')
+            journal = fetch_journal_info_from_nlmcatalog(issn)
+            if journal: #journal is in nlmcatalogy
+                #> Add categories from scimago data
+                category_strs = row['Categories'].split(";")
+                subject_categories = []
+                for category_str in category_strs:
+                    subject_category_name = category_str[:-5] # removing ' (Q1)'
+                    subject_category = SubjectCategory.get(name=subject_category_name)
+                    if subject_category:
+                        subject_categories.append(subject_category)
+                journal.subject_categories = subject_categories
+                #> Add SJR from scimago data
+                try:
+                    journal.sjr = float(row['SJR'].replace(',','.'))
+                except:
+                    journal.sjr = None
+                orm.commit()
+                journals.append(journal)
 
 
 
