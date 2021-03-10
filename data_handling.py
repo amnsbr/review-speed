@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import tldextract
 import xml.etree.ElementTree as ET 
 import pandas as pd
-import os
+import os, time
 
 import scraper
 from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, Article
@@ -76,8 +76,17 @@ def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
         return Journal.get(issn=issn)
     #> Search in NLM Catalog using ISSN
     search_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=%22{issn}%22[ISSN]'
-    search_res_xml = requests.get(search_url, headers=scraper.REQUESTS_AGENT_HEADERS).text
-    search_res_root = ET.fromstring(search_res_xml)
+    search_succeeded = False
+    retries = 0
+    while (retries < 10) and (not search_succeeded):
+        try:
+            search_res_xml = requests.get(search_url, headers=scraper.REQUESTS_AGENT_HEADERS).text
+            search_res_root = ET.fromstring(search_res_xml)
+        except:
+            retries += 1
+            time.sleep(.2)
+        else:
+            search_succeeded = True
     #> Check if the search has any results
     if not search_res_root.findall('IdList'):
         if verbosity=='full':
@@ -91,9 +100,17 @@ def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
     nlmcatalog_ids = [element.text for element in search_res_root.findall('IdList')[0].getchildren()]
     for nlmcatalog_id in nlmcatalog_ids:
         journal_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nlmcatalog&rettype=xml&id={nlmcatalog_id}'
-        journal_res_xml = requests.get(journal_url, headers=scraper.REQUESTS_AGENT_HEADERS).text
-        #> Parse the XML and extract fullname and abbr name
-        journal_res_root = ET.fromstring(journal_res_xml)
+        fetch_succeeded = False
+        retries = 0
+        while (retries < 10) and (not fetch_succeeded):
+            try:
+                journal_res_xml = requests.get(journal_url, headers=scraper.REQUESTS_AGENT_HEADERS).text
+                journal_res_root = ET.fromstring(journal_res_xml)
+            except:
+                time.sleep(.2)
+                retries += 1
+            else:
+                fetch_succeeded = True
         #>> full_name from TitleMain
         if len(journal_res_root.find('NLMCatalogRecord').findall('TitleMain')) > 0:
             full_name = journal_res_root.find('NLMCatalogRecord').find('TitleMain').find('Title').text
