@@ -55,25 +55,6 @@ form_groups = [
         ]),
     dbc.FormGroup(
         [
-            dbc.Label('Plot Metric'), 
-            html.Form(autoComplete='off', children=
-            [
-                dcc.Dropdown(
-                    id="plot-metric-dropdown",
-                    options=[
-                        {'label': 'Submit to Accept', 'value': 'Submit to Accept'},
-                        {'label': 'Accept to Publish', 'value': 'Accept to Publish'},
-                        {'label': 'Submit to Publish', 'value': 'Submit to Publish'},
-                    ],
-                    value='Submit to Accept',
-                    searchable=False,
-                    clearable=False,
-                )
-            ])
-            
-        ]),
-    dbc.FormGroup(
-        [
             dbc.Label('Date Range'), 
             dcc.DatePickerRange(
                 id='date-picker-range',
@@ -82,8 +63,27 @@ form_groups = [
                 initial_visible_month=datetime.date.today(),
             ),
         ]),
-
 ]
+
+plot_metric_formgroup = dbc.FormGroup(
+    [
+        dbc.Label('Plot Metric'), 
+        html.Form(autoComplete='off', children=
+        [
+            dcc.Dropdown(
+                id="plot-metric-dropdown",
+                options=[
+                    {'label': 'Submit to Accept', 'value': 'Submit to Accept'},
+                    {'label': 'Accept to Publish', 'value': 'Accept to Publish'},
+                    {'label': 'Submit to Publish', 'value': 'Submit to Publish'},
+                ],
+                value='Submit to Accept',
+                searchable=False,
+                clearable=False,
+            )
+        ])        
+    ]),
+
 
 
 def create_summary_cards(articles_df):
@@ -227,11 +227,11 @@ app.layout = dbc.Container(
     [
         dbc.Row(html.H2('Review Speed Analytics', style={"margin-top": 15})),
         html.Hr(),
-        dbc.Row([dbc.Col(form_group) for form_group in form_groups[:2]]),
-        dbc.Row([dbc.Col(form_groups[2])]),
+        dbc.Row([dbc.Col(form_group) for form_group in form_groups]),
         html.Hr(),
         dbc.Row(id='summary-cards'),
         dbc.Row(html.P('* Median (25th - 75th percentiles) in days'), id="numbers-note", style={"display": "none"}),
+        dbc.Row([dbc.Col(plot_metric_formgroup)], id="plot-metric-formgroup", style={"display": "none"}),
         dbc.Row(id='graphs'),
     ],
     fluid=False,
@@ -254,7 +254,8 @@ def update_options(search_value):
 @app.callback(
     [Output("summary-cards", "children"), 
      Output("graphs", "children"), 
-     Output("numbers-note", "style")],
+     Output("numbers-note", "style"),
+     Output("plot-metric-formgroup", "style")],
     Input("journal-abbr-dropdown", "value"),
     Input("plot-metric-dropdown", "value"),
     Input("date-picker-range", "start_date"),
@@ -278,6 +279,7 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
     cards: (list) of (dbc.Card) htmls containing number of artciles and median(IQR) review speed
     graphs: (list) of (dcc.Graph) [histogram, trend_graph]
     numbers_note_style: (dict) indicating whether the note about median(IQR) should be visible
+    plot_metric_formgroup_style: (dict) indicating whether the note about median(IQR) should be visible
     """
     if journal_abbr:
         #> Get articles df for the journal from db
@@ -304,11 +306,11 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
             trend_graph = plot_trend(articles_df, plot_metric)
             graphs = [histogram, trend_graph]
             graphs_row_content = [dbc.Col(graph) for graph in graphs]
-            return cards_row_content, graphs_row_content, {'display': 'inline'}
+            return cards_row_content, graphs_row_content, {'display': 'inline'}, {'display': 'block'}
         else:
-            return [html.H4("No articles in this time range")], [], {'display': 'none'}
+            return [html.H4("No articles in this time range")], [], {'display': 'none'}, {'display': 'none'}
     else:
-        return [], [], {'display': 'none'}
+        return [], [], {'display': 'none'}, {'display': 'none'}
 
 if __name__ == '__main__':
     app.run_server(host='localhost', debug=True)
