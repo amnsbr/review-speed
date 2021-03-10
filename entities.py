@@ -22,7 +22,7 @@ class SubjectCategory(db.Entity):
 
 class Journal(db.Entity):
     full_name = orm.Required(str)
-    abbr_name = orm.Required(str, unique=True)
+    abbr_name = orm.Required(str)
     issn = orm.Required(str, unique=True)
     nlmcatalog_id = orm.Optional(str)
     pmc_url = orm.Optional(str)

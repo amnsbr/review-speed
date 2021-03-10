@@ -13,12 +13,14 @@ import scraper
 from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, Article
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
-
+DATASET_PATH = 'database.sqlite'
 
 # Connect to database
-DATASET_PATH = 'database.sqlite'
+# if not os.path.exists(DATASET_PATH):
 db.bind(provider='sqlite', filename=DATASET_PATH, create_db=True)
 db.generate_mapping(create_tables=True)
+
+
 
 @orm.db_session
 def fetch_scimagojr_areas_categories():
@@ -173,11 +175,11 @@ def fetch_journals_info_from_scimago(subject_area_name, main_subject_category_na
     scimago_url += '&out=xls'
     scimago_df = pd.read_csv(scimago_url, sep=";")
     journals = []
-    for _, row in scimago_df.iterrows():
+    for idx, row in scimago_df.iterrows():
         issn_no_dash = row['Issn'].split(',')[0]
         issn = issn_no_dash[:4] + '-' + issn_no_dash[4:]
         if verbosity=='full':
-            print(issn)
+            print(f'({idx+1} of {scimago_df.shape[0]}) {issn}')
         journal = fetch_journal_info_from_nlmcatalog(issn)
         if journal: #journal is in nlmcatalogy
             #> Add categories from scimago data
