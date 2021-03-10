@@ -55,6 +55,25 @@ form_groups = [
         ]),
     dbc.FormGroup(
         [
+            dbc.Label('Plot Metric'), 
+            html.Form(autoComplete='off', children=
+            [
+                dcc.Dropdown(
+                    id="plot-metric-dropdown",
+                    options=[
+                        {'label': 'Submit to Accept', 'value': 'Submit to Accept'},
+                        {'label': 'Accept to Publish', 'value': 'Accept to Publish'},
+                        {'label': 'Submit to Publish', 'value': 'Submit to Publish'},
+                    ],
+                    value='Submit to Accept',
+                    searchable=False,
+                    clearable=False,
+                )
+            ])
+            
+        ]),
+    dbc.FormGroup(
+        [
             dbc.Label('Date Range'), 
             dcc.DatePickerRange(
                 id='date-picker-range',
@@ -108,24 +127,25 @@ def create_summary_cards(articles_df):
         cards.append(card)
     return cards
 
-def plot_histogram(articles_df):
+def plot_histogram(articles_df, plot_metric='Submit to Accept'):
     """
     Plots the histogram for Submit to Accept duration based on articles_df
 
     Parameters
     ----------
     artilces_df: (pandas.DataFrame) The review speed data from selected articles
+    plot_metric: (str) "Submit to Accept" (default), "Accept to Publish" and "Submit to Publish"
 
     Returns
     ----------
     graph: (dcc.Graph) review speed histogram
     """
-    nbins = int((articles_df["Submit to Accept"].max() - articles_df["Submit to Accept"].min()) // 10)
+    nbins = int((articles_df[plot_metric].max() - articles_df[plot_metric].min()) // 10)
     fig = px.histogram(articles_df, 
-                       x="Submit to Accept", 
+                       x=plot_metric, 
                        nbins=nbins)
     fig.update_layout(
-        xaxis_title="Submit to Accept (days)",
+        xaxis_title=f"{plot_metric} (days)",
         yaxis_title="Count",
     )
     graph = dcc.Graph(
@@ -137,13 +157,14 @@ def plot_histogram(articles_df):
     return graph
 
 # Trend plot
-def plot_trend(articles_df):
+def plot_trend(articles_df, plot_metric='Submit to Accept'):
     """
     Plots the monthly trend of Submit to Accept duration based on articles_df
     
     Parameters
     ----------
     artilces_df: (pandas.DataFrame) The review speed data from selected articles
+    plot_metric: (str) "Submit to Accept" (default), "Accept to Publish" and "Submit to Publish"
 
     Returns
     ----------
@@ -151,12 +172,12 @@ def plot_trend(articles_df):
     """
     DOI_BASE = 'https://doi.org/'
     articles_grouped_by_month = articles_df.set_index('published').groupby(pd.Grouper(freq='MS'))
-    monthly_trend_median = articles_grouped_by_month['Submit to Accept'].median()
+    monthly_trend_median = articles_grouped_by_month[plot_metric].median()
     #> Initialize the figure
     fig = go.Figure()
     #> Add boxplots for each month
     fig.add_trace(go.Box(
-        y=articles_df['Submit to Accept'],
+        y=articles_df[plot_metric],
         x=articles_df['published'].apply(lambda x: datetime.datetime(x.year, x.month, 1)),
         # .to_period is not an option because plotly doesn't work with pd.Period
         boxpoints=False,
@@ -177,7 +198,7 @@ def plot_trend(articles_df):
     #> Add the review speed of individual studies scatter
     if SHOW_SCATTER:
         fig.add_trace(go.Scatter(
-            y=articles_df['Submit to Accept'],
+            y=articles_df[plot_metric],
             x=articles_df['published'], 
             mode='markers',
             name='Articles',
@@ -186,7 +207,7 @@ def plot_trend(articles_df):
         ))
     fig.update_layout(
         xaxis_title="Date Published",
-        yaxis_title="Submit to Accept (days)",
+        yaxis_title=f"{plot_metric} (days)",
     )
     #> Set x-axis to be monthly
     fig.update_xaxes(
@@ -206,7 +227,8 @@ app.layout = dbc.Container(
     [
         dbc.Row(html.H2('Review Speed Analytics', style={"margin-top": 15})),
         html.Hr(),
-        dbc.Row([dbc.Col(form_group) for form_group in form_groups]),
+        dbc.Row([dbc.Col(form_group) for form_group in form_groups[:2]]),
+        dbc.Row([dbc.Col(form_groups[2])]),
         html.Hr(),
         dbc.Row(id='summary-cards'),
         dbc.Row(html.P('* Median (25th - 75th percentiles) in days'), id="numbers-note", style={"display": "none"}),
@@ -234,11 +256,12 @@ def update_options(search_value):
      Output("graphs", "children"), 
      Output("numbers-note", "style")],
     Input("journal-abbr-dropdown", "value"),
+    Input("plot-metric-dropdown", "value"),
     Input("date-picker-range", "start_date"),
     Input("date-picker-range", "end_date")
 )
 @cache.memoize(timeout=CACHE_TIMEOUT)
-def show_journal_info(journal_abbr, start_date, end_date):
+def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
     """
     Callback updating summary cards and graphs based on selected
     journal and dates
@@ -246,6 +269,7 @@ def show_journal_info(journal_abbr, start_date, end_date):
     Parameters
     ----------
     journal_abbr: (str) journal abbreviation based on NLM Catalog
+    plot_metric: (str) "Submit to Accept" (default), "Accept to Publish" and "Submit to Publish"
     start_date: (datetime.date)
     end_date: (datetime.date)
 
@@ -276,8 +300,8 @@ def show_journal_info(journal_abbr, start_date, end_date):
             cards = create_summary_cards(articles_df)
             cards_row_content = [dbc.Col(card) for card in cards]
             #> Plot the graphs
-            histogram = plot_histogram(articles_df)
-            trend_graph = plot_trend(articles_df)
+            histogram = plot_histogram(articles_df, plot_metric)
+            trend_graph = plot_trend(articles_df, plot_metric)
             graphs = [histogram, trend_graph]
             graphs_row_content = [dbc.Col(graph) for graph in graphs]
             return cards_row_content, graphs_row_content, {'display': 'inline'}
