@@ -7,6 +7,8 @@ import dash_html_components as html
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
+from flask_caching import Cache
+
 
 import datetime
 
@@ -16,10 +18,14 @@ import pandas as pd
 
 from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, Article
 
-# Connect to database
-DATASET_PATH = 'database.sqlite'
+#Config
 STATIC_PLOT = True
 SHOW_SCATTER = False
+CACHE_TIMEOUT = 24 * 60 * 60 #seconds
+
+
+# Connect to database
+DATASET_PATH = 'database.sqlite'
 db.bind(provider='sqlite', filename=DATASET_PATH, create_db=True)
 db.generate_mapping(create_tables=True)
 
@@ -31,6 +37,10 @@ with orm.db_session:
 # App initialization and layout
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
+cache = Cache(server, config={
+    'CACHE_TYPE': 'FileSystemCache',
+    'CACHE_DIR': 'FlaskCaching'
+})
 
 # Forms: static
 form_groups = [
@@ -188,6 +198,7 @@ def update_options(search_value):
     Input("date-picker-range", "start_date"),
     Input("date-picker-range", "end_date")
 )
+@cache.memoize(timeout=CACHE_TIMEOUT)
 def show_journal_info(journal_abbr, start_date, end_date):
     if journal_abbr:
         #> Get articles df for the journal from db

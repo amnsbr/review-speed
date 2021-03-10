@@ -4,6 +4,7 @@ pony==0.7.14
 pandas==1.1.4
 dash==1.19.0
 dash-bootstrap-components==0.10.3
+Flask-Caching==1.10.0
 pymed
 tldextract
 pytest
