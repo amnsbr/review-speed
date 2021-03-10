@@ -19,6 +19,7 @@ from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, 
 # Connect to database
 DATASET_PATH = 'database.sqlite'
 STATIC_PLOT = True
+SHOW_SCATTER = False
 db.bind(provider='sqlite', filename=DATASET_PATH, create_db=True)
 db.generate_mapping(create_tables=True)
 
@@ -64,7 +65,7 @@ def create_summary_cards(articles_df):
             [
                 html.H2(f"{articles_df.shape[0]} Articles", className="card-title"),
                 html.H5(f"{articles_df['published'].min().strftime('%Y %b')} - {articles_df['published'].max().strftime('%Y %b')}", className="card-title"),
-                html.P("median (IQR) days:", className="card-text"),
+                html.Br(className="card-text"),
             ],
             body=True,
             inverse=True,
@@ -88,11 +89,11 @@ def plot_histogram(articles_df):
     nbins = int((articles_df["Submit to Accept"].max() - articles_df["Submit to Accept"].min()) // 10)
     fig = px.histogram(articles_df, 
                        x="Submit to Accept", 
-                       nbins=nbins,
-                       labels={
-                           'x': 'Submit to Accept (days)',
-                           'y': 'Count'
-                       })
+                       nbins=nbins)
+    fig.update_layout(
+        xaxis_title="Submit to Accept (days)",
+        yaxis_title="Count",
+    )
     graph = dcc.Graph(
                     id='histogram',
                     figure=fig,
@@ -115,7 +116,7 @@ def plot_trend(articles_df):
         # .to_period is not an option because plotly doesn't work with pd.Period
         boxpoints=False,
         name='Monthly Boxplot',
-        showlegend=True,
+        showlegend=SHOW_SCATTER, #show the legend only if scatter is also shown
         hoverinfo='none'
     ))
 
@@ -129,14 +130,15 @@ def plot_trend(articles_df):
         hoverinfo='none'
     ))
 
-    fig.add_trace(go.Scatter(
-        y=articles_df['Submit to Accept'],
-        x=articles_df['published'], 
-        mode='markers',
-        name='Articles',
-        text=articles_df['doi'],
-        showlegend=True
-    ))
+    if SHOW_SCATTER:
+        fig.add_trace(go.Scatter(
+            y=articles_df['Submit to Accept'],
+            x=articles_df['published'], 
+            mode='markers',
+            name='Articles',
+            text=articles_df['doi'],
+            showlegend=True
+        ))
 
     fig.update_layout(
         xaxis_title="Date Published",
@@ -161,7 +163,7 @@ app.layout = dbc.Container(
         dbc.Row([dbc.Col(form_group) for form_group in form_groups]),
         html.Hr(),
         dbc.Row(id='summary-cards'),
-        dbc.Row(html.H6('Numbers represent median (25th - 75th percentiles)'), id="numbers-note", style={"display": "none"}),
+        dbc.Row(html.P('* Median (25th - 75th percentiles) in days'), id="numbers-note", style={"display": "none"}),
         dbc.Row(id='graphs'),
     ],
     fluid=False,
