@@ -215,7 +215,7 @@ def fetch_journal_recent_articles_data(journal_abbr, max_results=50, verbosity='
     articles: (list) a list of entities.Article items
     """
     pubmed = PubMed()
-    entries = pubmed.query(f"{journal_abbr}[jour]", max_results=max_results)
+    entries = list(pubmed.query(f"{journal_abbr}[jour]", max_results=max_results))
     articles = []
     counter = 0
     total_count = len(entries)
