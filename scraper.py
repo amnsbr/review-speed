@@ -41,7 +41,19 @@ REGEX_PATTERNS = {
         'Received': r'.*received: </label>(\d+) ([a-zA-Z]+) (\d+)',
         'Accepted': r'.*accepted: </label>(\d+) ([a-zA-Z]+) (\d+)',
         'Published': r'.*online: </label>(\d+) ([a-zA-Z]+) (\d+)',
-    }
+    },
+    'jst': [
+        {
+        'Received': r'.*Received: ([a-zA-Z]+) (\d+), (\d+)',
+        'Accepted': r'.*Accepted: ([a-zA-Z]+) (\d+), (\d+)',
+        'Published': r'.*Released on J-STAGE: ([a-zA-Z]+) (\d+), (\d+)',
+        },
+        {
+        'Received': r'.*received: ([a-zA-Z]+) (\d+), (\d+)',
+        'Accepted': r'.*accepted: ([a-zA-Z]+) (\d+), (\d+)',
+        'Published': r'.*Released: ([a-zA-Z]+) (\d+), (\d+)',
+        }
+    ]
 }
 
 DATESTR_PATTERNS = {
@@ -50,7 +62,8 @@ DATESTR_PATTERNS = {
     'karger': 'BdY',
     'tandfonline': 'dbY',
     'viamedica': 'Ymd',
-    'wiley': 'dBY'
+    'wiley': 'dBY',
+    'jst': 'BdY',
 }
 
 ##########################################################
@@ -94,6 +107,7 @@ SOAP_FUNCITONS = {
     'springer': springer_get_dates,
     'springeropen': springer_get_dates,
     'nature': springer_get_dates,
+    'biomedcentral': springer_get_dates,
     'hindawi': hindawi_get_dates,
     'oup': oup_get_dates,
 }
@@ -157,21 +171,26 @@ def get_dates(doi, publisher_domain):
     except:
         print("Unable to get article url page")
         return dates
-    regex_patterns = REGEX_PATTERNS.get(publisher_domain)
-    soap_function = SOAP_FUNCITONS.get(publisher_domain)
+    regex_pattern_dicts = REGEX_PATTERNS.get(publisher_domain, [])
+    soap_function = SOAP_FUNCITONS.get(publisher_domain, {})
     #> For some publishers we can use regex
-    if regex_patterns:
-        for event, regex in regex_patterns.items():
-            try:
-                #> Use prespecified regex_patterns to get date tuples, 
-                #  e.g.: ('July', '13', '2020'), ('13', '12', '2020'), etc.
-                datestr_tuple = re.match(regex, html, flags=re.DOTALL).groups()
-            except:
-                dates[event] = None
-            else:
-                #> Convert the tuples to datetime objs based on publisher's datestr pattern,
-                #  e.g.: BdY (full month name, day, full year)
-                dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
+    if not isinstance(regex_pattern_dicts, list):
+        regex_pattern_dicts = [regex_pattern_dicts]
+    if regex_pattern_dicts:
+        for regex_pattern_dict in regex_pattern_dicts:
+            for event, regex in regex_pattern_dict.items():
+                try:
+                    #> Use prespecified regex_patterns to get date tuples, 
+                    #  e.g.: ('July', '13', '2020'), ('13', '12', '2020'), etc.
+                    datestr_tuple = re.match(regex, html, flags=re.DOTALL).groups()
+                except:
+                    dates[event] = None
+                else:
+                    #> Convert the tuples to datetime objs based on publisher's datestr pattern,
+                    #  e.g.: BdY (full month name, day, full year)
+                    dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
+            if any([v is not None for v in dates.values()]):
+                break # do not try the other regex patterns
     #> For others we need specific functions for parsing the HTML
     # TODO: Technically these could also be written as regex patterns
     elif soap_function:
