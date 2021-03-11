@@ -13,7 +13,8 @@ import scraper
 from entities import orm, db, Publisher, BroadSubjectTerm, Journal, Article
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
-DATASET_PATH = 'data/database.sqlite'
+DATA_DIR = 'data'
+DATASET_PATH = os.path.join(DATA_DIR, 'database.sqlite')
 
 # Connect to database
 # if not os.path.exists(DATASET_PATH):
@@ -264,6 +265,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
 
     return articles
 
+@orm.db_session
 def fetch_broad_subject_term_articles_data(broad_subject_term_name, **kwargs):
     """
     A wrapper for fetch_journal_articles_data which gets the data for all the journals
@@ -277,3 +279,25 @@ def fetch_broad_subject_term_articles_data(broad_subject_term_name, **kwargs):
     for journal in BroadSubjectTerm.get(name=broad_subject_term_name).journals.order_by(Journal.abbr_name):
         print(journal.abbr_name)
         fetch_journal_articles_data(journal.abbr_name, **kwargs)
+
+def export_db_to_csv_files():
+    """
+    Export db to three CSV files for Article, Journal and Publisher entities
+    """
+    CSV_DIR = os.path.join(DATA_DIR, 'csv')
+    os.makedirs(CSV_DIR, exist_ok=True)
+    publishers_df = pd.read_sql('SELECT * FROM PUBLISHER', db.get_connection()).set_index('id')
+    journals_df = pd.read_sql('SELECT * FROM JOURNAL', db.get_connection()).set_index('id')
+    journals_df['publisher'] = journals_df['publisher'].map(publishers_df['domain'])
+    articles_df = pd.read_sql('SELECT * FROM ARTICLE', db.get_connection()).set_index('id')
+    articles_df['journal'] = articles_df['journal'].map(journals_df['abbr_name'])
+    publishers_df.to_csv(os.path.join(CSV_DIR, 'Publishers.csv'))
+    journals_df.to_csv(os.path.join(CSV_DIR, 'Journals.csv'))
+    articles_df.to_csv(os.path.join(CSV_DIR, 'Articles.csv'))
+
+def sort_publishers_by_journals_count():
+    return (pd.DataFrame(
+        [[p.domain, len(p.journals)] for p in Publisher.select()], 
+        columns=['publisher', 'count'])
+        .set_index('publisher')['count']
+        .sort_values(ascending=False))
