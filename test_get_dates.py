@@ -12,6 +12,14 @@ def test_get_dates_springer():
     assert dates['Accepted'] == datetime.datetime(2020, 11, 17)
     assert dates['Published'] == datetime.datetime(2020, 11, 23)
 
+def test_get_dates_nature():
+    doi = '10.1038/s41593-021-00802-y'
+    dates = scraper.get_dates(doi)
+    assert dates['Received'] == datetime.datetime(2020, 5, 13)
+    assert dates['Accepted'] == datetime.datetime(2021, 1, 12)
+    assert dates['Published'] == datetime.datetime(2021, 2, 22)
+
+
 def test_get_dates_karger():
     doi_url = 'https://doi.org/10.1159/000509078'
     dates = scraper.get_dates(doi_url)

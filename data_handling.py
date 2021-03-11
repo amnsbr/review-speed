@@ -190,7 +190,18 @@ def resolve_duplicated_journal_abbr_names():
     return True
 
 @orm.db_session
-def fetch_journal_recent_articles_data(journal_abbr, start_year=0, end_year=None, max_results=0, verbosity='full'):
+def update_supported_publishers():
+    """
+    Update the supported status of publishers based on current version of scraper
+    """
+    for publisher_domain in scraper.SUPPORTED_DOMAINS:
+        publisher = Publisher.get(domain=publisher_domain)
+        publisher.supported=True
+    orm.commit()
+        
+
+@orm.db_session
+def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=0, verbosity='full'):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
@@ -252,3 +263,17 @@ def fetch_journal_recent_articles_data(journal_abbr, start_year=0, end_year=None
             print(counter)
 
     return articles
+
+def fetch_broad_subject_term_articles_data(broad_subject_term_name, **kwargs):
+    """
+    A wrapper for fetch_journal_articles_data which gets the data for all the journals
+    in a broad subject term.
+
+    Parameters
+    ----------
+    broad_subject_term_name: (str) NLM catalog broad subject term
+    **kwargs will be passed on to fetch_journal_articles_data
+    """
+    for journal in BroadSubjectTerm.get(name=broad_subject_term_name).journals.order_by(Journal.abbr_name):
+        print(journal.abbr_name)
+        fetch_journal_articles_data(journal.abbr_name, **kwargs)

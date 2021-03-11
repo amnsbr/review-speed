@@ -52,13 +52,10 @@ DATESTR_PATTERNS = {
 def springer_get_dates(html):
     soup = BeautifulSoup(html, features='html.parser')
     time_elements = soup.findAll('time')
-    if len(time_elements) == 4:
-        received = datetime.datetime(*map(int, time_elements[1].attrs['datetime'].split('-')))
-        accepted = datetime.datetime(*map(int, time_elements[2].attrs['datetime'].split('-')))
-        published = datetime.datetime(*map(int, time_elements[3].attrs['datetime'].split('-')))
-        return received, accepted, published
-    else:
-        return None, None, None
+    received = datetime.datetime(*map(int, time_elements[1].attrs['datetime'].split('-')))
+    accepted = datetime.datetime(*map(int, time_elements[2].attrs['datetime'].split('-')))
+    published = datetime.datetime(*map(int, time_elements[3].attrs['datetime'].split('-')))
+    return received, accepted, published
     
 def hindawi_get_dates(html):
     soup = BeautifulSoup(html, features='html.parser')
@@ -76,6 +73,7 @@ def hindawi_get_dates(html):
 SOAP_FUNCITONS = {
     'springer': springer_get_dates,
     'springeropen': springer_get_dates,
+    'nature': springer_get_dates,
     'hindawi': hindawi_get_dates,
 }
 
@@ -156,7 +154,11 @@ def get_dates(doi, publisher_domain):
     elif soap_function:
         #> For consistency, the input to all these functions is a html
         #  and the output is a tuple (received, accepted, published)
-        parsed_dates = soap_function(html)
+        # TODO: Better handling of errors
+        try:
+            parsed_dates = soap_function(html)
+        except:
+            print("Soap failed")
         #> Place each datetime in their respective dict cell
         for event_idx in range(3):
             dates[EVENTS[event_idx]] = parsed_dates[event_idx]
