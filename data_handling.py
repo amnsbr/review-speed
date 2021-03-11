@@ -10,72 +10,19 @@ import pandas as pd
 import os, time
 
 import scraper
-from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, Article
+from entities import orm, db, Publisher, BroadSubjectTerm, Journal, Article
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
-DATASET_PATH = 'database.sqlite (8).bak'
+DATASET_PATH = 'database.sqlite'
 
 # Connect to database
 # if not os.path.exists(DATASET_PATH):
 db.bind(provider='sqlite', filename=DATASET_PATH, create_db=True)
 db.generate_mapping(create_tables=True)
 
-
-
-@orm.db_session
-def fetch_scimagojr_areas_categories():
-    """
-    Fetch the scimagojr subject areas and categories and them to the database
-    (Run only once)
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    ---------
-    None
-    """
-    base_html = requests.get(SCIMAGOJR_BASE, headers=scraper.REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
-    soup = BeautifulSoup(base_html, features='html.parser')
-    areas_ul = soup.find('li', text='All subject areas').parent
-    for area_a_element in areas_ul.findAll('a')[1:]:
-        subject_area = SubjectArea(
-            name=area_a_element.text,
-            scimago_code=area_a_element['data-code']
-            )
-        orm.commit()
-    categories_ul = soup.find('li', text=' All subject categories').parent
-    for category_a_element in categories_ul.findAll('a')[1:]:
-        subject_category_code = category_a_element['data-code']
-        subject_area_code = subject_category_code[:2]+'00'
-        subject_area = SubjectArea.get(scimago_code=subject_area_code)
-        subject_category = SubjectCategory(
-            name=category_a_element.text,
-            scimago_code=subject_category_code,
-            subject_area=subject_area
-        )
-        orm.commit()
-
-@orm.db_session
-def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
-    """
-    Fetch the journal and publisher info based on issn and add them to the database
-
-    Parameters
-    ----------
-    issn: (str) Journal's ISSN
-    verbosity: (str or None) 'full' will print all dois, 'summary' prints the counter every 5 articles, None prints nothing
-
-    Returns
-    ---------
-    journal: (entities.Journal)
-    """
-    if Journal.get(issn=issn): #TODO allow multiple issns
-        print("Journal already in db")
-        return Journal.get(issn=issn)
+def search_nlmcatalog(term, retmax=100000):
     #> Search in NLM Catalog using ISSN
-    search_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&term=%22{issn}%22[ISSN]'
+    search_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=nlmcatalog&retmax={retmax}&term={term}'
     search_succeeded = False
     retries = 0
     while (retries < 10) and (not search_succeeded):
@@ -87,18 +34,65 @@ def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
             time.sleep(.2)
         else:
             search_succeeded = True
-    #> Check if the search has any results
-    if not search_res_root.findall('IdList'):
-        if verbosity=='full':
-            print("The journal does not exist in NLM catalog")
-        return None
-    #> Get the NLM Catalogy IDs and fetch its info xml
-    #  note: for some ISSNs there are more than one ID, and in most cases one of them is not a journal
-    #  and has some field missing (resulting in an error) so it should loop through them and prevent
-    #  soap erros by first checking if the element exist and then getting its info
-    journal = None # function will return None if all IDs are incomplete
+    return search_res_root
+
+@orm.db_session
+def fetch_broad_subject_terms():
+    """
+    Fetches broad subject terms from NLM catalog. Note that only journals
+    indexed in MEDLINE have these terms
+    """
+    BROAD_SUBJECT_TERMS_INDEX_URL = 'https://wwwcf.nlm.nih.gov/serials/journals/index.cfm'
+    html = requests.get(BROAD_SUBJECT_TERMS_INDEX_URL, headers=scraper.REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
+    soup = BeautifulSoup(html, features='html.parser')
+    for a in soup.findAll('a'):
+        if a.get('href','').startswith('http://www.ncbi.nlm.nih.gov/nlmcatalog?term='):
+            broad_subject_term = BroadSubjectTerm.get(name=a.text)
+            if broad_subject_term==None:
+                broad_subject_term = BroadSubjectTerm(name=a.text)
+                orm.commit()
+
+@orm.db_session
+def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', verbosity='full'):
+    """
+    Fetch journal and publisher info for all the journals 
+    on nlmcatalog and add them/it to database
+
+    Parameters
+    ----------
+    broad_subject_term: (str) BroadSubjectTerm names based on NLM Catalog for MEDLINE
+    issn: (str)
+    verbosity: (str or None) 'full' will print all dois, 'summary' prints the counter every 5 articles, None prints nothing
+
+    Returns
+    ---------
+    None
+    """
+    if broad_subject_term_name:
+        term = f'{broad_subject_term_name}%5Bst%5D'
+    elif issn:
+        term = f'"{issn}"%5BISSN%5D'
+    else: #> get all
+        term = 'currentlyindexed'
+    search_res_root = search_nlmcatalog(term=term)
+    #> Get the NLM Catalogy IDs
     nlmcatalog_ids = [element.text for element in search_res_root.findall('IdList')[0].getchildren()]
-    for nlmcatalog_id in nlmcatalog_ids:
+    broad_subject_term = BroadSubjectTerm.get(name=broad_subject_term_name)
+    for idx, nlmcatalog_id in enumerate(nlmcatalog_ids):
+        if verbosity=='full':
+            print(f'{idx+1} of {len(nlmcatalog_ids)}: {nlmcatalog_id}')
+        elif verbosity=='summary' and ((idx+1)%5==0):
+            print(f'{idx+1} of {len(nlmcatalog_ids)}')
+        #> Check if journal already exist and avoid adding it
+        #  but add the current subject term to the journal if it's new
+        journal = Journal.get(nlmcatalog_id=nlmcatalog_id)
+        if journal:
+            if broad_subject_term:
+                if broad_subject_term not in journal.broad_subject_terms:
+                    journal.broad_subject_terms.add(broad_subject_term)
+                    orm.commit()
+            print('Already exists in db')
+            continue
         journal_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nlmcatalog&rettype=xml&id={nlmcatalog_id}'
         fetch_succeeded = False
         retries = 0
@@ -117,14 +111,21 @@ def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
             full_name = full_name.rstrip('.') # Remove the trailing "." from the name of some journals
         else:
             if verbosity=='full':
-                print(f"No TitleMain for NLM ID {nlmcatalog_id}")
+                print(f"No TitleMain")
             continue
         #>> abbr_name from MedlineTA
         if len(journal_res_root.find('NLMCatalogRecord').findall('MedlineTA')) > 0:
             abbr_name = journal_res_root.find('NLMCatalogRecord').find('MedlineTA').text
         else:
             if verbosity=='full':
-                print(f"No MedlineTA for NLM ID {nlmcatalog_id}")
+                print(f"No MedlineTA")
+            continue
+        #> get ISSNs
+        if len(journal_res_root.find('NLMCatalogRecord').findall('ISSN')) > 0:
+            issns = [node.text for node in journal_res_root.find('NLMCatalogRecord').findall('ISSN')]
+        else:
+            if verbosity=='full':
+                print(f"No ISSN")
             continue
         #> Get the journal and pmc url (if exists)
         pmc_url = journal_url = ''
@@ -137,96 +138,56 @@ def fetch_journal_info_from_nlmcatalog(issn, verbosity='full'):
                     else:
                         journal_url = ELocation_url
         if (pmc_url=='') and (journal_url==''):
-            print(f"No pmc/journal url for NLM ID {nlmcatalog_id}")
+            print(f"No pmc/journal url")
             continue
         #> Get the publisher url and domain from journal url
-        journal_url_extract = tldextract.extract(journal_url)
-        publisher_url = journal_url_extract.fqdn
-        publisher_domain = journal_url_extract.domain
-        #> Check if publisher is supported
-        publisher_supported = publisher_domain in scraper.SUPPORTED_DOMAINS
-        #> Create Publisher (if does not exist) and Journal database instances
-        publisher = Publisher.get(domain=publisher_domain)
-        if not publisher:
-            publisher = Publisher(
-                domain=publisher_domain, 
-                url=publisher_url, 
-                supported=publisher_supported)
+        if journal_url:
+            journal_url_extract = tldextract.extract(journal_url)
+            publisher_url = journal_url_extract.fqdn
+            publisher_domain = journal_url_extract.domain
+            #> Check if publisher is supported
+            publisher_supported = publisher_domain in scraper.SUPPORTED_DOMAINS
+            #> Create Publisher (if does not exist) and Journal database instances
+            publisher = Publisher.get(domain=publisher_domain)
+            if not publisher:
+                publisher = Publisher(
+                    domain=publisher_domain, 
+                    url=publisher_url, 
+                    supported=publisher_supported)
+        else:
+            publisher=None
         journal = Journal(
             full_name=full_name, 
             abbr_name=abbr_name, 
-            issn=issn, #TODO: get the other ISSNs as well
+            issns=issns,
             nlmcatalog_id=nlmcatalog_id,
             pmc_url=pmc_url,
-            publisher=publisher)
-        #> if a nlmcatalog_id has enough data, don't continue the loop to avoid creating multiple
-        #  journal instances with the same issn
-        break 
-    #> Save the database
-    orm.commit()
-    return journal
+            publisher=publisher,
+            broad_subject_terms=[broad_subject_term])
+        #> Save the database
+        orm.commit()
 
 @orm.db_session
-def fetch_journals_info_from_scimago(subject_area_name=None, main_subject_category_name=None, verbosity='full'):
+def resolve_duplicated_journal_abbr_names():
     """
-    Fetch the journals list based on subject area and category from scimagojr
-
-    Parameters
-    ----------
-    subject_area_name: (str) scimagojr subject area name
-    main_subject_category_name: (str) scimagojr subject category name to search. 
-        Note: other overlapping categories may also be added
-    verbosity: (str or None) 'full' will print all dois, 'summary' prints the counter every 5 articles, None prints nothing
+    For the journals fetched from nlmcatalog there are very few journals (with a single abbr_name)
+    that have multiple nlmcatalog ids. This function keeps the most recent version (the one with higher id)
+    to resolve this issue.
 
     Returns
-    ---------
-    journals: (list) of (entities.Journal)
+    (bool): whether there were any duplicates
     """
-    #> Generate the url based on area and category
-    scimago_url = SCIMAGOJR_BASE
-    #> Search all area names if no area name is specified
-    if not subject_area_name:
-        subject_area_names = [sa.name for sa in SubjectArea]
-    else:
-        subject_area_names = [subject_area_name]
-    for subject_area_name in subject_area_names:
-        subject_area_code = SubjectArea.get(name=subject_area_name).scimago_code
-        scimago_url += f'?area={subject_area_code}'
-        if main_subject_category_name:
-            main_subject_category_code = SubjectCategory.get(name=main_subject_category_name).scimago_code
-            scimago_url += f'&category={main_subject_category_code}'
-        scimago_url += '&out=xls'
-        scimago_df = pd.read_csv(scimago_url, sep=";")
-        journals = []
-        for idx, row in scimago_df.iterrows():
-            issn_no_dash = row['Issn'].split(',')[0]
-            if len(issn_no_dash) < 8:
-                if verbosity=='full':
-                    print('No (standard 8-digit) ISSN')
-                continue
-            issn = issn_no_dash[:4] + '-' + issn_no_dash[4:]
-            if verbosity=='full':
-                print(f'({idx+1} of {scimago_df.shape[0]}) {issn}')
-            journal = fetch_journal_info_from_nlmcatalog(issn)
-            if journal: #journal is in nlmcatalogy
-                #> Add categories from scimago data
-                category_strs = row['Categories'].split(";")
-                subject_categories = []
-                for category_str in category_strs:
-                    subject_category_name = category_str[:-5] # removing ' (Q1)'
-                    subject_category = SubjectCategory.get(name=subject_category_name)
-                    if subject_category:
-                        subject_categories.append(subject_category)
-                journal.subject_categories = subject_categories
-                #> Add SJR from scimago data
-                try:
-                    journal.sjr = float(row['SJR'].replace(',','.'))
-                except:
-                    journal.sjr = None
-                orm.commit()
-                journals.append(journal)
-
-
+    journal_names = pd.Series([j.abbr_name for j in Journal.select()])
+    duplicated_journal_names = journal_names[journal_names.duplicated()].values
+    if duplicated_journal_names.shape[0] == 0:
+        return False
+    for duplicated_journal_name in duplicated_journal_names:
+        print(duplicated_journal_name)
+        journal_versions = Journal.select(abbr_name=duplicated_journal_name).order_by(lambda j: int(j.nlmcatalog_id))
+        for obsolete_journal_version in list(journal_versions)[:-1]:
+            obsolete_journal_version.delete()
+            orm.commit()
+    return True
 
 @orm.db_session
 def fetch_journal_recent_articles_data(journal_abbr, max_results=50, verbosity='full'):

@@ -9,27 +9,20 @@ class Publisher(db.Entity):
     supported = orm.Required(bool)
     journals = orm.Set('Journal')
 
-class SubjectArea(db.Entity):
-    name = orm.Required(str)
-    scimago_code = orm.Required(str)
-    subject_categories = orm.Set('SubjectCategory')
-
-class SubjectCategory(db.Entity):
-    name = orm.Required(str)
-    scimago_code = orm.Required(str)
-    subject_area = orm.Required(SubjectArea)
+class BroadSubjectTerm(db.Entity):
+    name = orm.Required(str, unique=True)
     journals = orm.Set('Journal')
 
 class Journal(db.Entity):
     full_name = orm.Required(str)
     abbr_name = orm.Required(str)
-    issn = orm.Required(str, unique=True)
+    issns = orm.Optional(orm.StrArray)
     nlmcatalog_id = orm.Optional(str)
     pmc_url = orm.Optional(str)
     sjr = orm.Optional(float)
     impact_factor = orm.Optional(float)
-    publisher = orm.Required(Publisher)
-    subject_categories = orm.Set(SubjectCategory)
+    publisher = orm.Optional(Publisher)
+    broad_subject_terms = orm.Set(BroadSubjectTerm)
     articles = orm.Set('Article')
 
 class Article(db.Entity):
