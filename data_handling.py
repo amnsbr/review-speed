@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import tldextract
 import xml.etree.ElementTree as ET 
 import pandas as pd
-import os, time
+import os, time, datetime
 
 import scraper
 from entities import orm, db, Publisher, BroadSubjectTerm, Journal, Article
@@ -190,22 +190,35 @@ def resolve_duplicated_journal_abbr_names():
     return True
 
 @orm.db_session
-def fetch_journal_recent_articles_data(journal_abbr, max_results=50, verbosity='full'):
+def fetch_journal_recent_articles_data(journal_abbr, start_year=0, end_year=None, max_results=0, verbosity='full'):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
     Parameters
     ----------
     journal_abbr: (str) journal abbreviation according to NLM catalog
-    max_results: (int) number of recent articles to retrieve. 0 will get all the articles
+    max_results: (int) number of recent articles to retrieve, 0 will get all the articles
+    start_year: (int)
+    end_year: (int)
     verbosity: (str or None) 'full' will print all dois, 'summary' prints the counter every 5 articles, None prints nothing
 
     Returns
     ----------
     articles: (list) a list of entities.Article items
     """
+    #> Check if journal/PMC is supported by scraper
+    journal = Journal.get(abbr_name=journal_abbr)
+    if not journal.publisher.supported:
+        print("Journal not supported")
+        return []
+    #> Search in pubmed
     pubmed = PubMed()
-    entries = list(pubmed.query(f"{journal_abbr}[jour]", max_results=max_results))
+    if not end_year:
+        end_year = datetime.date.today().year + 2
+    query = f"{journal_abbr}[jour] {start_year}:{end_year}[DP]"
+    if not max_results:
+        max_results = pubmed.getTotalResultsCount(query)
+    entries = list(pubmed.query(query, max_results=max_results))
     articles = []
     counter = 0
     total_count = len(entries)
