@@ -17,7 +17,7 @@ DATASET_PATH = 'data/database.sqlite'
 
 # Connect to database
 # if not os.path.exists(DATASET_PATH):
-db.bind(provider='sqlite', filename=DATASET_PATH, create_db=True)
+db.bind(provider='sqlite', filename=DATASET_PATH)
 db.generate_mapping(create_tables=True)
 
 def search_nlmcatalog(term, retmax=100000):

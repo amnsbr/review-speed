@@ -1,13 +1,2 @@
-# Journal Review Speed Scraper
-Knowing the review speed of journals is often very important when researchers are choosing a journal to publish their work. Publishers such as Elsevier and Springer do report the review speeds, but often as an average number, with and unknown distribution and/or time window. This package scrapes the webpages of articles and using publisher-specific patterns/functions parses their submission, acceptance, and publication dates. Given a journal's abbreviated name, it searches PubMed for its latest (default: 50) articles, and saves their dates and review speeds in a pandas DataFrame. This can later be used to look at the distribution of review speed, or to get e.g., the 80th percentile of review speed.
-
-These are the currently supported publishers:
-- Elsevier
-- Springer
-- Karger
-- Hindawi
-- Taylor and Francis
-- Scielo
-However, this may not work for some journals of these publishers, as they may not have reported their submission, acceptance and publication dates.
-
-Currently the input and output is not optimal and needs further work. Also, as the parsing is based on specific regex patters or specific html elements, I expect this to be unstable, and continous testing and updating would be needed for maintaining it. Contributions are welcomed for maintanance and supporting more publishers.
+# Review Speed Analytics
+This app extracts the review speed of journal articles which are then visualized in a simple [Dash app](https://review-speed.herokuapp.com/) and can also be [downloaded](https://github.com/amnsbr/review-speed-data). The review speed for each article is individually extracted from its web-page, using the received, accepted and published dates. Currently can extract the review speeds from only a few publishers including Elsevier, Springer-Nature, Karger, Hindawi and Taylor and Francis, but more publishers will be supported in the future, provided that the dates are reported in their web-pages. The app is not fully tested and actively maintained, so bugs may occur and I really appreciate contributions.
