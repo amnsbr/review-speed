@@ -13,7 +13,7 @@ import scraper
 from entities import orm, db, Publisher, BroadSubjectTerm, Journal, Article
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
-DATASET_PATH = 'database.sqlite'
+DATASET_PATH = 'review-speed-data/database.sqlite'
 
 # Connect to database
 # if not os.path.exists(DATASET_PATH):

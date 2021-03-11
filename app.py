@@ -23,7 +23,7 @@ import data_handling
 STATIC_PLOT = True
 SHOW_SCATTER = False
 CACHE_TIMEOUT = 24 * 60 * 60 #seconds
-DATASET_PATH = 'database.sqlite'
+DATASET_PATH = 'review-speed-data/database.sqlite'
 
 # Initialize app for the first run
 

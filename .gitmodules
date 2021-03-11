@@ -1,0 +1,3 @@
+[submodule "review-speed-data"]
+	path = review-speed-data
+	url = https://github.com/amnsbr/review-speed-data.git
