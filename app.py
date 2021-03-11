@@ -16,20 +16,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-from entities import orm, db, Publisher, SubjectArea, SubjectCategory, Journal, Article
-import data_handling
+from data_handling import orm, db, Publisher, BroadSubjectTerm, Journal, Article
 
 # Config
 STATIC_PLOT = True
 SHOW_SCATTER = False
 CACHE_TIMEOUT = 24 * 60 * 60 #seconds
-DATASET_PATH = 'review-speed-data/database.sqlite'
 
 # Initialize app for the first run
 
-# Connect to the database
-db.bind(provider='sqlite', filename=DATASET_PATH)
-db.generate_mapping(create_tables=True)
+
 # Get available journals list
 with orm.db_session:
     journal_options = []
@@ -315,5 +311,5 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
         return [], [], {'display': 'none'}, {'display': 'none'}
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', debug=True)
+    app.run_server(host='localhost', debug=True)
     
