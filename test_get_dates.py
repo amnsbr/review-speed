@@ -14,10 +14,17 @@ def test_get_dates_springer():
 
 def test_get_dates_nature():
     doi = '10.1038/s41593-021-00802-y'
-    dates = scraper.get_dates(doi)
+    dates = scraper.get_dates(doi, 'nature')
     assert dates['Received'] == datetime.datetime(2020, 5, 13)
     assert dates['Accepted'] == datetime.datetime(2021, 1, 12)
     assert dates['Published'] == datetime.datetime(2021, 2, 22)
+
+def test_get_dates_wiley():
+    doi = '10.1002/hbm.25383'
+    dates = scraper.get_dates(doi, 'wiley')
+    assert dates['Received'] == datetime.datetime(2020, 9, 15)
+    assert dates['Accepted'] == datetime.datetime(2021, 2, 11)
+    assert dates['Published'] == datetime.datetime(2021, 3, 8)
 
 
 def test_get_dates_karger():

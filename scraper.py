@@ -1,4 +1,5 @@
 import requests
+import urllib
 from bs4 import BeautifulSoup
 import tldextract
 import datetime
@@ -35,6 +36,11 @@ REGEX_PATTERNS = {
         'Received': r'.*Submitted: (\d+)-(\d+)-(\d+)',
         'Accepted': r'.*Accepted: (\d+)-(\d+)-(\d+)',
         'Published': r'.*Published online: (\d+)-(\d+)-(\d+)',
+    },
+    'wiley': {
+        'Received': r'.*received: </label>(\d+) ([a-zA-Z]+) (\d+)',
+        'Accepted': r'.*accepted: </label>(\d+) ([a-zA-Z]+) (\d+)',
+        'Published': r'.*online: </label>(\d+) ([a-zA-Z]+) (\d+)',
     }
 }
 
@@ -43,7 +49,8 @@ DATESTR_PATTERNS = {
     'sciencedirect': 'dBY',
     'karger': 'BdY',
     'tandfonline': 'dbY',
-    'viamedica': 'Ymd'
+    'viamedica': 'Ymd',
+    'wiley': 'dBY'
 }
 
 ##########################################################
@@ -105,6 +112,8 @@ def get_article_url(doi):
     elif domain == 'elsevier':
         sciencedirect_id = doi_res.url.split('/')[-1]
         article_url = 'https://www.sciencedirect.com/science/article/pii/' + sciencedirect_id
+    elif domain == 'wiley':
+        article_url = 'https://onlinelibrary.wiley.com/action/ajaxShowPubInfo?doi=' + urllib.parse.quote(doi, safe='')
     else:
         article_url = doi_res.url
     return article_url
