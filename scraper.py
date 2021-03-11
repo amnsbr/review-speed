@@ -56,16 +56,14 @@ DATESTR_PATTERNS = {
 ##########################################################
 ############# Publisher Specific Functions ###############
 ##########################################################
-def springer_get_dates(html):
-    soup = BeautifulSoup(html, features='html.parser')
+def springer_get_dates(soup):
     time_elements = soup.findAll('time')
     received = datetime.datetime(*map(int, time_elements[1].attrs['datetime'].split('-')))
     accepted = datetime.datetime(*map(int, time_elements[2].attrs['datetime'].split('-')))
     published = datetime.datetime(*map(int, time_elements[3].attrs['datetime'].split('-')))
     return received, accepted, published
     
-def hindawi_get_dates(html):
-    soup = BeautifulSoup(html, features='html.parser')
+def hindawi_get_dates(soup):
     if soup.find('span', string='Received'):
         received_str = soup.find('span', string='Received').parent.findAll('span')[-1].text
         received = datestr_tuple_to_datetime(received_str.split(' '), 'dbY')
@@ -77,11 +75,27 @@ def hindawi_get_dates(html):
     else:
         return None, None, None
 
+def oup_get_dates(soup):
+    received = accepted = published = None
+    for history_entry in soup.findAll('div', {'class':'history-entry'}):
+        wi_state = history_entry.find('div', {'class':'wi-state'}).text
+        wi_date = history_entry.find('div', {'class':'wi-date'}).text
+        date = datestr_tuple_to_datetime(wi_date.split(' '), 'dBY')
+        if wi_state == 'Received:':
+            received = date
+        elif wi_state == 'Accepted:':
+            accepted = date
+        elif wi_state == 'Published:':
+            published = date
+    return received, accepted, published
+
+
 SOAP_FUNCITONS = {
     'springer': springer_get_dates,
     'springeropen': springer_get_dates,
     'nature': springer_get_dates,
     'hindawi': hindawi_get_dates,
+    'oup': oup_get_dates,
 }
 
 SUPPORTED_DOMAINS = set(SOAP_FUNCITONS.keys()).union(set(REGEX_PATTERNS))
@@ -165,7 +179,8 @@ def get_dates(doi, publisher_domain):
         #  and the output is a tuple (received, accepted, published)
         # TODO: Better handling of errors
         try:
-            parsed_dates = soap_function(html)
+            soup = BeautifulSoup(html, features='html.parser')
+            parsed_dates = soap_function(soup)
         except:
             print("Soap failed")
         else:

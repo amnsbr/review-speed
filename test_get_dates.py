@@ -26,6 +26,13 @@ def test_get_dates_wiley():
     assert dates['Accepted'] == datetime.datetime(2021, 2, 11)
     assert dates['Published'] == datetime.datetime(2021, 3, 8)
 
+def test_get_dates_oup():
+    doi = '10.1093/advances/nmab007'
+    dates = scraper.get_dates(doi, 'oup')
+    assert dates['Received'] == datetime.datetime(2020, 7, 3)
+    assert dates['Accepted'] == datetime.datetime(2021, 1, 19)
+    assert dates['Published'] == datetime.datetime(2021, 3, 9)
+
 
 def test_get_dates_karger():
     doi_url = 'https://doi.org/10.1159/000509078'
