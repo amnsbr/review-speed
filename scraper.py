@@ -159,9 +159,10 @@ def get_dates(doi, publisher_domain):
             parsed_dates = soap_function(html)
         except:
             print("Soap failed")
-        #> Place each datetime in their respective dict cell
-        for event_idx in range(3):
-            dates[EVENTS[event_idx]] = parsed_dates[event_idx]
+        else:
+            #> Place each datetime in their respective dict cell
+            for event_idx in range(3):
+                dates[EVENTS[event_idx]] = parsed_dates[event_idx]
     else:
         print(f"{publisher_domain} not supported")
     return dates
