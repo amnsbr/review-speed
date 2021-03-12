@@ -202,7 +202,7 @@ def update_supported_publishers():
         
 
 @orm.db_session
-def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=0, verbosity='full'):
+def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=0, give_up_limit=10, verbosity='full'):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
@@ -220,7 +220,10 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     """
     #> Check if journal/PMC is supported by scraper
     journal = Journal.get(abbr_name=journal_abbr)
-    if not journal.publisher.supported:
+    if not journal.publisher:
+        print("Journal has no publisher")
+        return []
+    elif not journal.publisher.supported:
         print("Journal not supported")
         return []
     #> Search in pubmed
@@ -234,6 +237,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     articles = []
     counter = 0
     total_count = len(entries)
+    any_success = False
     for entry in entries:
         # > a quick fix for a bug in pymed (0.8.9), which sometimes returns a multiline list of dois
         # for a entry. And the first one is the real one
@@ -253,6 +257,12 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
                     published=dates['Published']
                 )
                 orm.commit()
+                any_success = True
+            elif (counter > give_up_limit) and (not any_success):
+                if verbosity=='full':
+                    print(f"No success for any of the {give_up_limit} articles searched")
+                return []
+
         else:
             if verbosity=='full':
                 print("Already in database")
