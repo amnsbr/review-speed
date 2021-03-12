@@ -204,7 +204,7 @@ def update_supported_publishers():
         
 
 @orm.db_session
-def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=0, give_up_limit=10, verbosity='full'):
+def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, give_up_limit=10, verbosity='full'):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
@@ -233,8 +233,6 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     if not end_year:
         end_year = datetime.date.today().year + 2
     query = f"{journal_abbr}[jour] {start_year}:{end_year}[DP]"
-    if not max_results:
-        max_results = pubmed.getTotalResultsCount(query)
     entries = list(pubmed.query(query, max_results=max_results))
     articles = []
     counter = 0
