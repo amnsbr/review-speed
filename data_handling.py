@@ -197,7 +197,9 @@ def update_supported_publishers():
     """
     for publisher_domain in scraper.SUPPORTED_DOMAINS:
         publisher = Publisher.get(domain=publisher_domain)
-        publisher.supported=True
+        if not publisher.supported:
+            print(publisher.domain)
+            publisher.supported=True
     orm.commit()
         
 
