@@ -292,6 +292,9 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
             articles_df = articles_df[articles_df['published'] >= start_date]
         if end_date:
             articles_df = articles_df[articles_df['published'] <= end_date]
+        #> Drop NA dates (TODO: deal with NA values in a better way)
+        articles_df = articles_df.loc[articles_df[['received', 'accepted', 'published']].dropna().index]
+        #> Calculate intervals
         articles_df['Submit to Accept'] = (articles_df['accepted'] - articles_df['received']).dt.days
         articles_df['Accept to Publish'] = (articles_df['published'] - articles_df['accepted']).dt.days
         articles_df['Submit to Publish'] = (articles_df['published'] - articles_df['received']).dt.days

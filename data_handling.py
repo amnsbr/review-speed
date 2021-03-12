@@ -15,6 +15,7 @@ from entities import orm, db, Publisher, BroadSubjectTerm, Journal, Article
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
 DATA_DIR = 'data'
 DATASET_PATH = os.path.join(DATA_DIR, 'database.sqlite')
+GIVE_UP_LIMIT = 10
 
 # Connect to database
 # if not os.path.exists(DATASET_PATH):
@@ -204,7 +205,7 @@ def update_supported_publishers():
         
 
 @orm.db_session
-def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, give_up_limit=10, verbosity='full'):
+def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, verbosity='full'):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
@@ -258,14 +259,15 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
                 )
                 orm.commit()
                 any_success = True
-            elif (counter > give_up_limit) and (not any_success):
+            elif (counter+1 > GIVE_UP_LIMIT) and (not any_success):
                 if verbosity=='full':
-                    print(f"No success for any of the {give_up_limit} articles searched")
+                    print(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
                 return []
 
         else:
             if verbosity=='full':
                 print("Already in database")
+            any_success = True
         articles.append(article)
         counter+=1
         if verbosity=='full':
