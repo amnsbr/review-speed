@@ -234,15 +234,32 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     if not end_year:
         end_year = datetime.date.today().year + 2
     query = f"{journal_abbr}[jour] {start_year}:{end_year}[DP]"
-    entries = list(pubmed.query(query, max_results=max_results))
+    search_succeeded = False
+    retries = 0
+    while (retries < 10) and (not search_succeeded):
+        try:
+            entries = list(pubmed.query(query, max_results=max_results))
+        except:
+            retries += 1
+            time.sleep(.2)
+        else:
+            search_succeeded = True
+    if not search_succeeded:
+        if verbosity=='full':
+            print("Pubmed search failed after 10 retries")
+        return []
     articles = []
     counter = 0
     total_count = len(entries)
     any_success = False
     for entry in entries:
-        # > a quick fix for a bug in pymed (0.8.9), which sometimes returns a multiline list of dois
-        # for a entry. And the first one is the real one
-        doi = entry.doi.split('\n')[0]
+        if entry.doi:
+            # > a quick fix for a bug in pymed (0.8.9), which sometimes returns a multiline list of dois
+            # for a entry. And the first one is the real one
+            doi = entry.doi.split('\n')[0]
+        else:
+            print("No DOI")
+            continue
         article = Article.get(doi=doi)
         if not article:
             journal=Journal.get(abbr_name=journal_abbr)

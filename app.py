@@ -34,6 +34,7 @@ with orm.db_session:
 
 # App initialization and layout
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app.title = 'Review Speed Analytics'
 server = app.server
 cache = Cache(server, config={
     'CACHE_TYPE': 'FileSystemCache',
