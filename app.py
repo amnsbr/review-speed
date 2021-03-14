@@ -23,13 +23,11 @@ STATIC_PLOT = True
 SHOW_SCATTER = False
 CACHE_TIMEOUT = 24 * 60 * 60 #seconds
 
-# Initialize app for the first run
-
 
 # Get available journals list
 with orm.db_session:
     journal_options = []
-    for journal in Journal.select(lambda j: len(j.articles)>0):
+    for journal in Journal.select(lambda j: len(j.articles)>0).order_by(Journal.abbr_name):
         journal_options.append({'label': journal.abbr_name, 'value': journal.abbr_name})
 
 # App initialization and layout
