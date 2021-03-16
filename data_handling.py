@@ -192,7 +192,7 @@ def update_supported_publishers():
             publisher.supported=True
             publisher.save()
         
-def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, verbosity='full'):
+def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, verbosity='full', logger=None):
     """
     Uses PubMed to get the latest articles of a journal based on its name
 
@@ -203,6 +203,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     start_year: (int)
     end_year: (int)
     verbosity: (str or None) 'full' will print all dois, 'summary' prints the counter every 5 articles, None prints nothing
+    logger: (Logger or None)
 
     Returns
     ----------
@@ -212,10 +213,10 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     journal = Journal.objects.get(abbr_name=journal_abbr)
     publisher_Q = Publisher.objects.filter(journals__contains=journal)
     if publisher_Q.count() == 0:
-        print("Journal has no publisher")
+        logger.info("Journal has no publisher")
         return
     elif not publisher_Q[0].supported:
-        print("Journal not supported")
+        logger.info("Journal not supported")
         return
     else:
         publisher = publisher_Q[0]
@@ -236,7 +237,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
             search_succeeded = True
     if not search_succeeded:
         if verbosity=='full':
-            print("Pubmed search failed after 10 retries")
+            logger.info("Pubmed search failed after 10 retries")
         return
     articles = []
     counter = 0
@@ -248,7 +249,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
             # for a entry. And the first one is the real one
             doi = entry.doi.split('\n')[0]
         else:
-            print("No DOI")
+            logger.info("No DOI")
             continue
         if Journal.objects.filter(articles__doi=doi).count() == 0: # article does not exist
             dates = scraper.get_dates(doi, publisher.domain)
@@ -265,18 +266,18 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
                 any_success = True
             elif (counter+1 > GIVE_UP_LIMIT) and (not any_success):
                 if verbosity=='full':
-                    print(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
+                    logger.info(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
                 journal.update(set__last_failed=True)
                 return
         else:
             if verbosity=='full':
-                print("Already in database")
+                logger.info("Already in database")
             any_success = True
         counter+=1
         if verbosity=='full':
-            print(f'({counter} of {total_count}): {doi}')
+            logger.info(f'[{journal.abbr_name}] ({counter} of {total_count}): {doi}')
         if (counter%5==0) and (verbosity=='summary'):
-            print(counter)
+            logger.info(counter)
     journal.update(set__last_failed=False)
 
 def sort_publishers_by_journals_count():
