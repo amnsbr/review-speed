@@ -160,26 +160,26 @@ def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', ver
                 publisher = publisher_Q[0]
             publisher.update(push__journals=journal)
 
-def resolve_duplicated_journal_abbr_names():
-    """
-    For the journals fetched from nlmcatalog there are very few journals (with a single abbr_name)
-    that have multiple nlmcatalog ids. This function keeps the most recent version (the one with higher id)
-    to resolve this issue.
+# def resolve_duplicated_journal_abbr_names():
+#     """
+#     For the journals fetched from nlmcatalog there are very few journals (with a single abbr_name)
+#     that have multiple nlmcatalog ids. This function keeps the most recent version (the one with higher id)
+#     to resolve this issue.
 
-    Returns
-    (bool): whether there were any duplicates
-    """
-    journal_names = pd.Series([j.abbr_name for j in Journal.objects])
-    duplicated_journal_names = journal_names[journal_names.duplicated()].values
-    if duplicated_journal_names.shape[0] == 0:
-        return False
-    for duplicated_journal_name in duplicated_journal_names:
-        print(duplicated_journal_name)
-        journal_versions = [(int(j.nlmcatalog_id), j) for Journal.objects.filter(abbr_name=duplicated_journal_name)]
-        journal_versions = sorted(journal_versions, key=lambda item: item[0])
-        for obsolete_journal_version in list(journal_versions)[:-1]:
-            obsolete_journal_version[1].delete()
-    return True
+#     Returns
+#     (bool): whether there were any duplicates
+#     """
+#     journal_names = pd.Series([j.abbr_name for j in Journal.objects])
+#     duplicated_journal_names = journal_names[journal_names.duplicated()].values
+#     if duplicated_journal_names.shape[0] == 0:
+#         return False
+#     for duplicated_journal_name in duplicated_journal_names:
+#         print(duplicated_journal_name)
+#         journal_versions = [(int(j.nlmcatalog_id), j) for Journal.objects.filter(abbr_name=duplicated_journal_name)]
+#         journal_versions = sorted(journal_versions, key=lambda item: item[0])
+#         for obsolete_journal_version in list(journal_versions)[:-1]:
+#             obsolete_journal_version[1].delete()
+#     return True
 
 def update_supported_publishers():
     """
@@ -210,13 +210,15 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     """
     #> Check if journal/PMC is supported by scraper
     journal = Journal.objects.get(abbr_name=journal_abbr)
-    publisher_Q = Publsiher.objects.filter(journals__contains=journal)
+    publisher_Q = Publisher.objects.filter(journals__contains=journal)
     if publisher_Q.count() == 0:
         print("Journal has no publisher")
-        return []
+        return
     elif not publisher_Q[0].supported:
         print("Journal not supported")
-        return []
+        return
+    else:
+        publisher = publisher_Q[0]
     #> Search in pubmed
     pubmed = PubMed()
     if not end_year:
@@ -235,7 +237,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     if not search_succeeded:
         if verbosity=='full':
             print("Pubmed search failed after 10 retries")
-        return []
+        return
     articles = []
     counter = 0
     total_count = len(entries)
@@ -248,10 +250,8 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         else:
             print("No DOI")
             continue
-        articles_Q = Article.objects.filter(doi=doi)
-        if articles_Q.count() == 0:
-            journal=Journal.objects.get(abbr_name=journal_abbr)
-            dates = scraper.get_dates(doi, journal.publisher.domain)
+        if Journal.objects.filter(articles__doi=doi).count() == 0: # article does not exist
+            dates = scraper.get_dates(doi, publisher.domain)
             if any([v is not None for v in dates.values()]): #> the operation has succeeded
                 article = Article(
                     doi=doi,
@@ -260,25 +260,24 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
                     received=dates['Received'],
                     accepted=dates['Accepted'],
                     published=dates['Published']
-                ).save()
+                )
                 journal.update(push__articles=article)
                 any_success = True
             elif (counter+1 > GIVE_UP_LIMIT) and (not any_success):
                 if verbosity=='full':
                     print(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
-                return []
+                journal.update(set__last_failed=True)
+                return
         else:
             if verbosity=='full':
                 print("Already in database")
-            article = articles_Q[0]
             any_success = True
         counter+=1
         if verbosity=='full':
             print(f'({counter} of {total_count}): {doi}')
         if (counter%5==0) and (verbosity=='summary'):
             print(counter)
-
-    return articles
+    journal.update(set__last_failed=False)
 
 def sort_publishers_by_journals_count():
     return (pd.DataFrame(

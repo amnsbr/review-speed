@@ -2,15 +2,12 @@ from mongoengine import *
 import os
 
 if os.path.exists('mongo_atlas_writing_connection_str'):
-    connection_str = open('mongo_atlas_writing_connection_str','r').read()
+    connection_str = open('mongo_atlas_writing_connection_str','r').read().rstrip('\n')
+    WRITING_ALLOWED = True
 else:
-    connection_str = open('mongo_atlas_reading_connection_str','r').read()
+    connection_str = open('mongo_atlas_reading_connection_str','r').read().rstrip('\n')
+    WRITING_ALLOWED = False
 client = connect(host=connection_str)
-
-# from pony import orm
-# from datetime import date
-
-# db = orm.Database()
 
 class Article(EmbeddedDocument):
     doi = StringField(required=True)
@@ -28,6 +25,8 @@ class Journal(Document):
     pmc_url = StringField(required=False)
     sjr = FloatField(required=False)
     impact_factor = FloatField(required=False)
+    last_failed = BooleanField(required=False) 
+    last_checked = DateTimeField(required=False)
     articles = ListField(EmbeddedDocumentField(Article))
 
 class BroadSubjectTerm(Document):
