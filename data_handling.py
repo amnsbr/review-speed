@@ -252,7 +252,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
             logger.info("No DOI")
             continue
         if Journal.objects.filter(articles__doi=doi).count() == 0: # article does not exist
-            dates = scraper.get_dates(doi, publisher.domain)
+            dates = scraper.get_dates(doi, publisher.domain, logger=logger)
             if any([v is not None for v in dates.values()]): #> the operation has succeeded
                 article = Article(
                     doi=doi,

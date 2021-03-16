@@ -146,7 +146,7 @@ def get_article_url(doi):
         article_url = doi_res.url
     return article_url
 
-def get_dates(doi, publisher_domain):
+def get_dates(doi, publisher_domain, logger=None):
     """
     Uses Regex or BeautifulSoup to get the datetimes for received, accepted and published
     
@@ -154,6 +154,7 @@ def get_dates(doi, publisher_domain):
     ----------
     doi: (str) article doi
     publisher_domain: (str) publisher's domain name (e.g. sciencedirect, karger, etc.)
+    logger: (Logger or None)
 
     Returns
     ----------
@@ -163,13 +164,13 @@ def get_dates(doi, publisher_domain):
     try:
         article_url = get_article_url(doi)
     except:
-        print("Unable to parse publisher and article url from the doi")
+        logger.info("Unable to parse publisher and article url from the doi")
         return dates
     #> Get the HTML
     try:
         html = requests.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
     except:
-        print("Unable to get article url page")
+        logger.info("Unable to get article url page")
         return dates
     regex_pattern_dicts = REGEX_PATTERNS.get(publisher_domain, [])
     soap_function = SOAP_FUNCITONS.get(publisher_domain, {})
@@ -201,11 +202,11 @@ def get_dates(doi, publisher_domain):
             soup = BeautifulSoup(html, features='html.parser')
             parsed_dates = soap_function(soup)
         except:
-            print("Soap failed")
+            logger.debug("Soap failed")
         else:
             #> Place each datetime in their respective dict cell
             for event_idx in range(3):
                 dates[EVENTS[event_idx]] = parsed_dates[event_idx]
     else:
-        print(f"{publisher_domain} not supported")
+        logger.debug(f"{publisher_domain} not supported")
     return dates
