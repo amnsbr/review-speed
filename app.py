@@ -16,6 +16,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
+from models import *
+
 # Config
 STATIC_PLOT = True
 SHOW_SCATTER = False
