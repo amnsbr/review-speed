@@ -16,7 +16,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-from data_handling import orm, db, Publisher, BroadSubjectTerm, Journal, Article
+# from data_handling import orm, db, Publisher, BroadSubjectTerm, Journal, Article
+from models import *
 
 # Config
 STATIC_PLOT = True
@@ -25,10 +26,9 @@ CACHE_TIMEOUT = 24 * 60 * 60 #seconds
 
 
 # Get available journals list
-with orm.db_session:
-    journal_options = []
-    for journal in Journal.select(lambda j: len(j.articles)>0).order_by(Journal.abbr_name):
-        journal_options.append({'label': journal.abbr_name, 'value': journal.abbr_name})
+journal_options = []
+for journal in Journal.objects.filter(articles__1__exists=True).order_by('abbr_name'):
+    journal_options.append({'label': journal.abbr_name, 'value': journal.abbr_name})
 
 # App initialization and layout
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -280,12 +280,20 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
     """
     if journal_abbr:
         #> Get articles df for the journal from db
-        with orm.db_session:
-            journal = Journal.get(abbr_name=journal_abbr)
-            articles_df = pd.DataFrame([article.to_dict() for article in journal.articles])
-            articles_df['journal']=journal.abbr_name
-            for event in ['received', 'accepted', 'published']:
+        journal = Journal.objects.get(abbr_name=journal_abbr)
+        if len(journal.articles) == 0:
+            return [html.H4("No data available")], [], {'display': 'none'}, {'display': 'none'}
+        articles_df = pd.DataFrame([article.to_mongo().to_dict() for article in journal.articles])
+        articles_df['journal']=journal.abbr_name
+        missing_events = []
+        for event in ['received', 'accepted', 'published']:
+            if event in articles_df.columns:
                 articles_df[event] = pd.to_datetime(articles_df[event])
+            else:
+                missing_events.append(event)
+        if missing_events:
+            missing_events_str = f"{' and '.join([event.title() for event in missing_events])} dates not reported"
+            return [html.H4(missing_events_str)], [], {'display': 'none'}, {'display': 'none'}
         #> Limit to start_date and end_date
         if start_date:
             articles_df = articles_df[articles_df['published'] >= start_date]

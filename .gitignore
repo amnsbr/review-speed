@@ -131,3 +131,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# db
+database.sqlite
+mongo_atlas_writing_connection_str

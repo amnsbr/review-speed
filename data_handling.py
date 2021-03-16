@@ -10,17 +10,11 @@ import pandas as pd
 import os, time, datetime
 
 import scraper
-from entities import orm, db, Publisher, BroadSubjectTerm, Journal, Article
+from models import Publisher, BroadSubjectTerm, Journal, Article
+from helpers import download_file
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
-DATA_DIR = 'data'
-DATASET_PATH = os.path.join(DATA_DIR, 'database.sqlite')
 GIVE_UP_LIMIT = 10
-
-# Connect to database
-# if not os.path.exists(DATASET_PATH):
-db.bind(provider='sqlite', filename=DATASET_PATH)
-db.generate_mapping(create_tables=True)
 
 def search_nlmcatalog(term, retmax=100000):
     #> Search in NLM Catalog using ISSN
@@ -38,7 +32,6 @@ def search_nlmcatalog(term, retmax=100000):
             search_succeeded = True
     return search_res_root
 
-@orm.db_session
 def fetch_broad_subject_terms():
     """
     Fetches broad subject terms from NLM catalog. Note that only journals
@@ -49,12 +42,9 @@ def fetch_broad_subject_terms():
     soup = BeautifulSoup(html, features='html.parser')
     for a in soup.findAll('a'):
         if a.get('href','').startswith('http://www.ncbi.nlm.nih.gov/nlmcatalog?term='):
-            broad_subject_term = BroadSubjectTerm.get(name=a.text)
-            if broad_subject_term==None:
-                broad_subject_term = BroadSubjectTerm(name=a.text)
-                orm.commit()
+            if len(BroadSubjectTerm.objects.filter(name=a.text)) == 0:
+                broad_subject_term = BroadSubjectTerm(name=a.text).save()
 
-@orm.db_session
 def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', verbosity='full'):
     """
     Fetch journal and publisher info for all the journals 
@@ -79,7 +69,10 @@ def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', ver
     search_res_root = search_nlmcatalog(term=term)
     #> Get the NLM Catalogy IDs
     nlmcatalog_ids = [element.text for element in search_res_root.findall('IdList')[0].getchildren()]
-    broad_subject_term = BroadSubjectTerm.get(name=broad_subject_term_name)
+    if broad_subject_term_name:
+        broad_subject_term = BroadSubjectTerm.objects.get(name=broad_subject_term_name)
+    else:
+        broad_subject_term = None
     for idx, nlmcatalog_id in enumerate(nlmcatalog_ids):
         if verbosity=='full':
             print(f'{idx+1} of {len(nlmcatalog_ids)}: {nlmcatalog_id}')
@@ -87,12 +80,12 @@ def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', ver
             print(f'{idx+1} of {len(nlmcatalog_ids)}')
         #> Check if journal already exist and avoid adding it
         #  but add the current subject term to the journal if it's new
-        journal = Journal.get(nlmcatalog_id=nlmcatalog_id)
-        if journal:
+        journal_Q = Journal.objects.filter(nlmcatalog_id=nlmcatalog_id)
+        if journal_Q.count() > 0:
             if broad_subject_term:
+                journal = journal_Q[0]
                 if broad_subject_term not in journal.broad_subject_terms:
-                    journal.broad_subject_terms.add(broad_subject_term)
-                    orm.commit()
+                    broad_subject_term.update(push__journals=journal)
             print('Already exists in db')
             continue
         journal_url = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nlmcatalog&rettype=xml&id={nlmcatalog_id}'
@@ -142,6 +135,13 @@ def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', ver
         if (pmc_url=='') and (journal_url==''):
             print(f"No pmc/journal url")
             continue
+        #> Add the journal
+        journal = Journal(
+            full_name=full_name, 
+            abbr_name=abbr_name, 
+            issns=issns,
+            nlmcatalog_id=nlmcatalog_id,
+            pmc_url=pmc_url).save()
         #> Get the publisher url and domain from journal url
         if journal_url:
             journal_url_extract = tldextract.extract(journal_url)
@@ -150,26 +150,16 @@ def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', ver
             #> Check if publisher is supported
             publisher_supported = publisher_domain in scraper.SUPPORTED_DOMAINS
             #> Create Publisher (if does not exist) and Journal database instances
-            publisher = Publisher.get(domain=publisher_domain)
-            if not publisher:
+            publisher_Q = Publisher.objects.filter(domain=publisher_domain)
+            if publisher_Q.count() == 0:
                 publisher = Publisher(
                     domain=publisher_domain, 
                     url=publisher_url, 
-                    supported=publisher_supported)
-        else:
-            publisher=None
-        journal = Journal(
-            full_name=full_name, 
-            abbr_name=abbr_name, 
-            issns=issns,
-            nlmcatalog_id=nlmcatalog_id,
-            pmc_url=pmc_url,
-            publisher=publisher,
-            broad_subject_terms=[broad_subject_term])
-        #> Save the database
-        orm.commit()
+                    supported=publisher_supported).save()
+            else:
+                publisher = publisher_Q[0]
+            publisher.update(push__journals=journal)
 
-@orm.db_session
 def resolve_duplicated_journal_abbr_names():
     """
     For the journals fetched from nlmcatalog there are very few journals (with a single abbr_name)
@@ -179,32 +169,29 @@ def resolve_duplicated_journal_abbr_names():
     Returns
     (bool): whether there were any duplicates
     """
-    journal_names = pd.Series([j.abbr_name for j in Journal.select()])
+    journal_names = pd.Series([j.abbr_name for j in Journal.objects])
     duplicated_journal_names = journal_names[journal_names.duplicated()].values
     if duplicated_journal_names.shape[0] == 0:
         return False
     for duplicated_journal_name in duplicated_journal_names:
         print(duplicated_journal_name)
-        journal_versions = Journal.select(abbr_name=duplicated_journal_name).order_by(lambda j: int(j.nlmcatalog_id))
+        journal_versions = [(int(j.nlmcatalog_id), j) for Journal.objects.filter(abbr_name=duplicated_journal_name)]
+        journal_versions = sorted(journal_versions, key=lambda item: item[0])
         for obsolete_journal_version in list(journal_versions)[:-1]:
-            obsolete_journal_version.delete()
-            orm.commit()
+            obsolete_journal_version[1].delete()
     return True
 
-@orm.db_session
 def update_supported_publishers():
     """
     Update the supported status of publishers based on current version of scraper
     """
     for publisher_domain in scraper.SUPPORTED_DOMAINS:
-        publisher = Publisher.get(domain=publisher_domain)
+        publisher = Publisher.objects.get(domain=publisher_domain)
         if not publisher.supported:
             print(publisher.domain)
             publisher.supported=True
-    orm.commit()
+            publisher.save()
         
-
-@orm.db_session
 def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, verbosity='full'):
     """
     Uses PubMed to get the latest articles of a journal based on its name
@@ -222,11 +209,12 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     articles: (list) a list of entities.Article items
     """
     #> Check if journal/PMC is supported by scraper
-    journal = Journal.get(abbr_name=journal_abbr)
-    if not journal.publisher:
+    journal = Journal.objects.get(abbr_name=journal_abbr)
+    publisher_Q = Publsiher.objects.filter(journals__contains=journal)
+    if publisher_Q.count() == 0:
         print("Journal has no publisher")
         return []
-    elif not journal.publisher.supported:
+    elif not publisher_Q[0].supported:
         print("Journal not supported")
         return []
     #> Search in pubmed
@@ -260,32 +248,30 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         else:
             print("No DOI")
             continue
-        article = Article.get(doi=doi)
-        if not article:
-            journal=Journal.get(abbr_name=journal_abbr)
+        articles_Q = Article.objects.filter(doi=doi)
+        if articles_Q.count() == 0:
+            journal=Journal.objects.get(abbr_name=journal_abbr)
             dates = scraper.get_dates(doi, journal.publisher.domain)
             if any([v is not None for v in dates.values()]): #> the operation has succeeded
                 article = Article(
                     doi=doi,
                     title=entry.title,
                     authors=[f"{a['lastname']} {a['initials']}" for a in entry.authors],
-                    journal=journal,
                     received=dates['Received'],
                     accepted=dates['Accepted'],
                     published=dates['Published']
-                )
-                orm.commit()
+                ).save()
+                journal.update(push__articles=article)
                 any_success = True
             elif (counter+1 > GIVE_UP_LIMIT) and (not any_success):
                 if verbosity=='full':
                     print(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
                 return []
-
         else:
             if verbosity=='full':
                 print("Already in database")
+            article = articles_Q[0]
             any_success = True
-        articles.append(article)
         counter+=1
         if verbosity=='full':
             print(f'({counter} of {total_count}): {doi}')
@@ -294,39 +280,9 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
 
     return articles
 
-@orm.db_session
-def fetch_broad_subject_term_articles_data(broad_subject_term_name, **kwargs):
-    """
-    A wrapper for fetch_journal_articles_data which gets the data for all the journals
-    in a broad subject term.
-
-    Parameters
-    ----------
-    broad_subject_term_name: (str) NLM catalog broad subject term
-    **kwargs will be passed on to fetch_journal_articles_data
-    """
-    for journal in BroadSubjectTerm.get(name=broad_subject_term_name).journals.order_by(Journal.abbr_name):
-        print(journal.abbr_name)
-        fetch_journal_articles_data(journal.abbr_name, **kwargs)
-
-def export_db_to_csv_files():
-    """
-    Export db to three CSV files for Article, Journal and Publisher entities
-    """
-    CSV_DIR = os.path.join(DATA_DIR, 'csv')
-    os.makedirs(CSV_DIR, exist_ok=True)
-    publishers_df = pd.read_sql('SELECT * FROM PUBLISHER', db.get_connection()).set_index('id')
-    journals_df = pd.read_sql('SELECT * FROM JOURNAL', db.get_connection()).set_index('id')
-    journals_df['publisher'] = journals_df['publisher'].map(publishers_df['domain'])
-    articles_df = pd.read_sql('SELECT * FROM ARTICLE', db.get_connection()).set_index('id')
-    articles_df['journal'] = articles_df['journal'].map(journals_df['abbr_name'])
-    publishers_df.to_csv(os.path.join(CSV_DIR, 'Publishers.csv'))
-    journals_df.to_csv(os.path.join(CSV_DIR, 'Journals.csv'))
-    articles_df.to_csv(os.path.join(CSV_DIR, 'Articles.csv'))
-
 def sort_publishers_by_journals_count():
     return (pd.DataFrame(
-        [[p.domain, len(p.journals)] for p in Publisher.select()], 
+        [[p.domain, len(p.journals)] for p in Publisher.objects], 
         columns=['publisher', 'count'])
         .set_index('publisher')['count']
         .sort_values(ascending=False))
