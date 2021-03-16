@@ -16,9 +16,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-# from data_handling import orm, db, Publisher, BroadSubjectTerm, Journal, Article
-from models import *
-
 # Config
 STATIC_PLOT = True
 SHOW_SCATTER = False
@@ -222,7 +219,18 @@ def plot_trend(articles_df, plot_metric='Submit to Accept'):
 #> App base layout
 app.layout = dbc.Container(
     [
-        dbc.Row(html.H2('Review Speed Analytics', style={"margin-top": 15})),
+        dbc.Row([
+            dbc.Col(
+                html.H2('Review Speed Analytics', style={"margin-top": 15}),
+                md=9),
+            dbc.Col(
+                html.A(
+                    html.Img(
+                        src='https://github.githubassets.com/images/modules/site/icons/footer/github-mark.svg', 
+                        style={"float": "right", "height": 35, "margin-top": 20}),
+                    href='https://github.com/amnsbr/review-speed'),
+                md=3)
+        ]),
         html.Hr(),
         dbc.Row([dbc.Col(form_group) for form_group in form_groups]),
         html.Hr(),

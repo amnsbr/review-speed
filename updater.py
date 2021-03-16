@@ -2,6 +2,7 @@ from models import *
 import data_handling
 
 import datetime
+import gc
 
 UPDATE_INTERVAL = 14 #days
 
@@ -20,6 +21,7 @@ def update(start_year=2020):
             if needs_update and not last_failed:
                 data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year)
                 journal.update(set__last_checked=datetime.datetime.now())
+            gc.collect()
 
 if __name__ == '__main__':
     update()
