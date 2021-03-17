@@ -184,16 +184,11 @@ def get_dates(doi, publisher_domain, logger=None):
                     #> Use prespecified regex_patterns to get date tuples, 
                     #  e.g.: ('July', '13', '2020'), ('13', '12', '2020'), etc.
                     datestr_tuple = re.match(regex, html, flags=re.DOTALL).groups()
+                    #> Convert the tuples to datetime objs based on publisher's datestr pattern,
+                    #  e.g.: BdY (full month name, day, full year)
+                    dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
                 except:
                     dates[event] = None
-                else:
-                    if len(datestr_tuple) == 3:
-                        #> Convert the tuples to datetime objs based on publisher's datestr pattern,
-                        #  e.g.: BdY (full month name, day, full year)
-                        dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
-                    else:
-                        logger.debug('Datestr tuple doesn not have 3 elements')
-                        dates[event] = None
             if any([v is not None for v in dates.values()]):
                 break # do not try the other regex patterns
     #> For others we need specific functions for parsing the HTML
