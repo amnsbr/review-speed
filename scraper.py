@@ -187,9 +187,13 @@ def get_dates(doi, publisher_domain, logger=None):
                 except:
                     dates[event] = None
                 else:
-                    #> Convert the tuples to datetime objs based on publisher's datestr pattern,
-                    #  e.g.: BdY (full month name, day, full year)
-                    dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
+                    if len(datestr_tuple) == 3:
+                        #> Convert the tuples to datetime objs based on publisher's datestr pattern,
+                        #  e.g.: BdY (full month name, day, full year)
+                        dates[event] = datestr_tuple_to_datetime(datestr_tuple, DATESTR_PATTERNS[publisher_domain])
+                    else:
+                        logger.debug('Datestr tuple doesn not have 3 elements')
+                        dates[event] = None
             if any([v is not None for v in dates.values()]):
                 break # do not try the other regex patterns
     #> For others we need specific functions for parsing the HTML
