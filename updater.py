@@ -26,7 +26,7 @@ def update(start_year=2020):
     if not WRITING_ALLOWED:
         logger.info("Writing to db not allowed on this machine")
         return False
-    for journal in Journal.objects().order_by('last_checked').allow_disk_use(True):
+    for journal in Journal.objects():
         journal_dict = journal.to_mongo().to_dict()
         last_failed = journal_dict.get('last_failed', False)
         needs_update = (datetime.datetime.now() - journal_dict.get('last_checked', datetime.datetime(1900,1,1))).days > UPDATE_INTERVAL
@@ -35,13 +35,11 @@ def update(start_year=2020):
                 data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year, logger=logger)
                 journal.update(set__last_checked=datetime.datetime.now())
         else:
-            #> Since journals are sorted by last_checked, if we reach to a journal
-            #  which doesn't need update, the journals after that would also not need
-            #  update and the updater should go into the idle mode
-            logging.info('Going into idle')
-            time.sleep(IDLE_TIME)
-            break
+            continue
         gc.collect()
+    logging.info('Going into idle')
+    time.sleep(IDLE_TIME)
+
 
 if __name__ == '__main__':
     update()

@@ -14,6 +14,7 @@ from models import Publisher, BroadSubjectTerm, Journal, Article
 from helpers import download_file
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
+JOURNALS_LIST_PATH = os.path.join('data', 'journals_list.txt')
 GIVE_UP_LIMIT = 10
 
 def search_nlmcatalog(term, retmax=100000):
@@ -293,3 +294,9 @@ def sort_journals_by_articles_count():
         columns=['journal', 'count'])
         .set_index('journal')['count']
         .sort_values(ascending=False))
+
+def fetch_journals_list_from_db():
+    journals_list = Journal.objects.values_list('abbr_name')
+    journals_list = sorted(journals_list)
+    with open(JOURNALS_LIST_PATH, 'w') as journals_list_file:
+        journals_list_file.write('\n'.join(journals_list))

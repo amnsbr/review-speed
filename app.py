@@ -22,12 +22,16 @@ from models import *
 STATIC_PLOT = True
 SHOW_SCATTER = False
 CACHE_TIMEOUT = 24 * 60 * 60 #seconds
+JOURNALS_LIST_PATH = os.path.join('data', 'journals_list.txt')
 
 
 # Get available journals list
+with open(JOURNALS_LIST_PATH, 'r') as journals_list_file:
+    journals_list = journals_list_file.read().splitlines()
 journal_options = []
-for journal in Journal.objects().filter(articles__1__exists=True).order_by('abbr_name').allow_disk_use(True):
-    journal_options.append({'label': journal.abbr_name, 'value': journal.abbr_name})
+for abbr_name in journals_list:
+    journal_options.append({'label': abbr_name, 'value': abbr_name})
+
 
 # App initialization and layout
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -292,7 +296,10 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
         #> Get articles df for the journal from db
         journal = Journal.objects.get(abbr_name=journal_abbr)
         if len(journal.articles) == 0:
-            return [html.H4("No data available")], [], {'display': 'none'}, {'display': 'none'}
+            if journal.last_failed:
+                return [html.H4("Publisher is not supported or dates are not reported")], [], {'display': 'none'}, {'display': 'none'}
+            else:
+                return [html.H4("No data available")], [], {'display': 'none'}, {'display': 'none'}
         articles_df = pd.DataFrame([article.to_mongo().to_dict() for article in journal.articles])
         articles_df['journal']=journal.abbr_name
         missing_events = []
