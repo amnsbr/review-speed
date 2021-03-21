@@ -26,7 +26,7 @@ CACHE_TIMEOUT = 24 * 60 * 60 #seconds
 
 # Get available journals list
 journal_options = []
-for journal in Journal.objects.filter(articles__1__exists=True).order_by('abbr_name'):
+for journal in Journal.objects().filter(articles__1__exists=True).order_by('abbr_name').allow_disk_use(True):
     journal_options.append({'label': journal.abbr_name, 'value': journal.abbr_name})
 
 # App initialization and layout

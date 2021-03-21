@@ -26,7 +26,7 @@ def update(start_year=2020):
     if not WRITING_ALLOWED:
         logger.info("Writing to db not allowed on this machine")
         return False
-    for journal in Journal.objects.order_by('last_checked'):
+    for journal in Journal.objects().order_by('last_checked').allow_disk_use(True):
         journal_dict = journal.to_mongo().to_dict()
         last_failed = journal_dict.get('last_failed', False)
         needs_update = (datetime.datetime.now() - journal_dict.get('last_checked', datetime.datetime(1900,1,1))).days > UPDATE_INTERVAL

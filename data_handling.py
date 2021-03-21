@@ -80,7 +80,7 @@ def fetch_journals_info_from_nlmcatalog(broad_subject_term_name='', issn='', ver
             print(f'{idx+1} of {len(nlmcatalog_ids)}')
         #> Check if journal already exist and avoid adding it
         #  but add the current subject term to the journal if it's new
-        journal_Q = Journal.objects.filter(nlmcatalog_id=nlmcatalog_id)
+        journal_Q = Journal.objects.allow_disk_use(True).filter(nlmcatalog_id=nlmcatalog_id)
         if journal_Q.count() > 0:
             if broad_subject_term:
                 journal = journal_Q[0]
@@ -285,4 +285,11 @@ def sort_publishers_by_journals_count():
         [[p.domain, len(p.journals)] for p in Publisher.objects], 
         columns=['publisher', 'count'])
         .set_index('publisher')['count']
+        .sort_values(ascending=False))
+
+def sort_journals_by_articles_count():
+    return (pd.DataFrame(
+        [[j.abbr_name, len(j.articles)] for j in Journal.objects], 
+        columns=['journal', 'count'])
+        .set_index('journal')['count']
         .sort_values(ascending=False))
