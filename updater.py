@@ -6,8 +6,14 @@ import gc
 import time
 
 import logging
-logging.basicConfig(filename='updater.log', level=logging.INFO)
+
 logger = logging.getLogger('main_logger')
+logger.setLevel(logging.INFO)
+fh = logging.FileHandler('updater.log')
+formatter = logging.Formatter("%(asctime)s\t[%(levelname)s]\t%(message)s",
+                              "%Y-%m-%d %H:%M:%S")
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 
 UPDATE_INTERVAL = 14 #days
@@ -26,7 +32,7 @@ def update(start_year=2020):
     if not WRITING_ALLOWED:
         logger.info("Writing to db not allowed on this machine")
         return False
-    for journal in Journal.objects():
+    for journal in Journal.objects().timeout(False):
         journal_dict = journal.to_mongo().to_dict()
         last_failed = journal_dict.get('last_failed', False)
         needs_update = (datetime.datetime.now() - journal_dict.get('last_checked', datetime.datetime(1900,1,1))).days > UPDATE_INTERVAL
@@ -37,7 +43,7 @@ def update(start_year=2020):
         else:
             continue
         gc.collect()
-    logging.info('Going into idle')
+    logging.info(f'Going into sleep for {IDLE_TIME} seconds')
     time.sleep(IDLE_TIME)
 
 
