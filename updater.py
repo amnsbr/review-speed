@@ -41,8 +41,8 @@ def update(start_year=2020):
         if needs_update:
             if not last_failed:
                 data_handling.fetch_journal_articles_data(abbr_name, start_year=start_year, logger=logger)
-                journal.update(set__last_checked=datetime.datetime.now())
         else:
+            logger.info(f'[{abbr_name}] is up-to-date or its scraping failed last time')
             continue
         gc.collect()
     logging.info(f'Going into sleep for {IDLE_TIME} seconds')

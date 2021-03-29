@@ -280,6 +280,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         if (counter%5==0) and (verbosity=='summary'):
             logger.info(counter)
     journal.update(set__last_failed=False)
+    journal.update(set__last_checked=datetime.datetime.now())
 
 def sort_publishers_by_journals_count():
     return (pd.DataFrame(
