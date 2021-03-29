@@ -32,13 +32,15 @@ def update(start_year=2020):
     if not WRITING_ALLOWED:
         logger.info("Writing to db not allowed on this machine")
         return False
-    for journal in Journal.objects().timeout(False):
-        journal_dict = journal.to_mongo().to_dict()
-        last_failed = journal_dict.get('last_failed', False)
-        needs_update = (datetime.datetime.now() - journal_dict.get('last_checked', datetime.datetime(1900,1,1))).days > UPDATE_INTERVAL
+    #> Get all journals data from the database at once to avoid timeout problems
+    journals_data = Journal.objects.values_list('abbr_name', 'last_failed', 'last_checked')
+    for journal_data in journals_data:
+        abbr_name, last_failed, last_checked = journal_data # which is a tuple
+        #> Update the journal if it is scrapable (last_failed=False) and its data is > UPDATE_INTERVAL days old
+        needs_update = (datetime.datetime.now() - last_checked).days > UPDATE_INTERVAL
         if needs_update:
             if not last_failed:
-                data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year, logger=logger)
+                data_handling.fetch_journal_articles_data(abbr_name, start_year=start_year, logger=logger)
                 journal.update(set__last_checked=datetime.datetime.now())
         else:
             continue
