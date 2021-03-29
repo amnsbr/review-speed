@@ -26,5 +26,5 @@ sudo supervisorctl update
 4. Check if it's running:
 
 ```
-sudo supervisorctl reread
+sudo supervisorctl status review-speed-updater
 ```
