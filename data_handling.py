@@ -265,11 +265,14 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
                 )
                 journal.update(push__articles=article)
                 any_success = True
-            elif (counter+1 > GIVE_UP_LIMIT) and (not any_success):
+            else:
                 if verbosity=='full':
-                    logger.info(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
-                journal.update(set__last_failed=True)
-                return
+                    logger.info('Scraper failed')
+                if (counter+1 > GIVE_UP_LIMIT) and (not any_success):
+                    if verbosity=='full':
+                        logger.info(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
+                    journal.update(set__last_failed=True)
+                    return
         else:
             if verbosity=='full':
                 logger.info("Already in database")
