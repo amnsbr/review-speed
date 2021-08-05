@@ -299,6 +299,12 @@ def sort_journals_by_articles_count():
         .set_index('journal')['count']
         .sort_values(ascending=False))
 
+def get_number_of_journals_w_data():
+    journals_data = Journal.objects.values_list('abbr_name', 'last_failed', 'last_checked')
+    journals_data_df = pd.DataFrame(sorted(journals_data, key=lambda item: (item[2], item[0])))
+    return (journals_data_df[2] != datetime.datetime(2020,1,1)).sum()
+
+
 def fetch_journals_list_from_db():
     journals_list = Journal.objects.values_list('abbr_name')
     journals_list = sorted(journals_list)

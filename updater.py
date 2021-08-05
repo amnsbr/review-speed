@@ -17,7 +17,6 @@ logger.addHandler(fh)
 
 
 UPDATE_INTERVAL = 14 #days
-IDLE_TIME = 24 * 60 * 60 #seconds
 
 def update(start_year=2020):
     """
@@ -34,7 +33,7 @@ def update(start_year=2020):
         return False
     #> Get all journals data from the database at once to avoid timeout problems
     journals_data = Journal.objects.values_list('abbr_name', 'last_failed', 'last_checked')
-    journals_data = sorted(journals_data, key=lambda item: item[2])
+    journals_data = sorted(journals_data, key=lambda item: (item[2], item[0]))
     for journal_data in journals_data:
         abbr_name, last_failed, last_checked = journal_data # which is a tuple
         #> Update the journal if it is scrapable (last_failed=False) and its data is > UPDATE_INTERVAL days old
@@ -47,10 +46,9 @@ def update(start_year=2020):
         else:
             logger.info(f'No more journals need update')
             break
+        #> Clear the memory and wait 1 sec before going to the next journal
         gc.collect()
-    logging.info(f'Going into sleep for {IDLE_TIME} seconds')
-    time.sleep(IDLE_TIME)
-
+        time.sleep(1)
 
 if __name__ == '__main__':
     update()

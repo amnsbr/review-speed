@@ -1,0 +1,13 @@
+[Unit]
+Description=review speed app updater
+
+[Service]
+User=amin
+WorkingDirectory=/var/www/review-speed
+ExecStart=/bin/bash -c 'source /var/www/review-speed/venv/bin/activate && python /var/www/review-speed/updater.py'
+
+[Install]
+WantedBy=multi-user.target
+
+[Timer]
+OnCalendar=*-*-1,10,20 00:00:00

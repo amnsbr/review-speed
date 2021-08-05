@@ -1,30 +1,16 @@
-1. Install supervisor:
-
+1. Copy the updater service file to systemd folder (will run the updater every 10 days)
 ```
-sudo apt install supervisor
-```
-
-2. Create 'review-speed.conf' in /etc/supervisor/conf.d with the following content:
-
-```
-[program:review-speed-updater]
-command=/bin/bash -c 'source /var/www/review-speed/venv/bin/activate && python /var/www/review-speed/updater.py'
-directory=/var/www/review-speed
-user=<your_username>
-numprocs=1
-autostart=true
-autorestart=true
-startsecs=10
+sudo cp review_speed_updater.service /etc/systemd/system
 ```
 
-3. Run supervisor:
+2. Start and enable the service:
 
 ```
-sudo supervisorctl reread
-sudo supervisorctl update
+sudo systemctl start review_speed_updater
+sudo systemctl enable review_speed_updater
 ```
-4. Check if it's running:
+3. Check if it's running:
 
 ```
-sudo supervisorctl status review-speed-updater
+sudo systemctl status review_speed_updater
 ```
