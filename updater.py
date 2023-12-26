@@ -16,9 +16,9 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 
-UPDATE_INTERVAL = 14 #days
+UPDATE_INTERVAL = -1 #days
 
-def update(start_year=2020):
+def update(start_year=2022, domain='all'):
     """
     A very long function which updates the review speed database until it
     is not needed and then goes into idle mode. This is executed outside
@@ -31,24 +31,29 @@ def update(start_year=2020):
     if not WRITING_ALLOWED:
         logger.info("Writing to db not allowed on this machine")
         return False
-    #> Get all journals data from the database at once to avoid timeout problems
-    journals_data = Journal.objects.values_list('abbr_name', 'last_failed', 'last_checked')
-    journals_data = sorted(journals_data, key=lambda item: (item[2], item[0]))
-    for journal_data in journals_data:
-        abbr_name, last_failed, last_checked = journal_data # which is a tuple
-        #> Update the journal if it is scrapable (last_failed=False) and its data is > UPDATE_INTERVAL days old
-        needs_update = (datetime.datetime.now() - last_checked).days > UPDATE_INTERVAL
-        if needs_update:
-            if not last_failed:
-                data_handling.fetch_journal_articles_data(abbr_name, start_year=start_year, logger=logger)
+    if domain == 'all':
+        publishers = Publisher.objects.filter(supported=True)
+    else:
+        publishers = Publisher.objects.filter(domain=domain)
+    for publisher in publishers:
+        logger.info(f'[{publisher.domain}]')
+        #> Get all journals of the publisher
+        journals = publisher.journals
+        for journal in journals:
+            logger.info(f'[{journal.abbr_name}]')
+            #> Update the journal if it is scrapable (last_failed=False) and its data is > UPDATE_INTERVAL days old
+            needs_update = (datetime.datetime.now() - journal.last_checked).days > UPDATE_INTERVAL
+            if needs_update:
+                if not journal.last_failed:
+                    data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year, logger=logger)
+                else:
+                    logger.info(f'[{journal.abbr_name}] scraping failed last time')
             else:
-                logger.info(f'[{abbr_name}] scraping failed last time')
-        else:
-            logger.info(f'No more journals need update')
-            break
-        #> Clear the memory and wait 1 sec before going to the next journal
-        gc.collect()
-        time.sleep(1)
+                logger.info(f'None of {publisher.domain} journals need update')
+                break
+            #> Clear the memory and wait 1 sec before going to the next journal
+            gc.collect()
+            time.sleep(1)
 
 if __name__ == '__main__':
     update()
