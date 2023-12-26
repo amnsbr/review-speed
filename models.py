@@ -13,6 +13,8 @@ class Article(EmbeddedDocument):
     doi = StringField(required=True)
     title = StringField(required=False)
     authors = ListField(StringField())
+    first_affiliation = StringField(required=False)
+    last_affiliation = StringField(required=False)
     received = DateTimeField(required=False)
     accepted = DateTimeField(required=False)
     published = DateTimeField(required=False)

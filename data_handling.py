@@ -186,12 +186,21 @@ def update_supported_publishers():
     """
     Update the supported status of publishers based on current version of scraper
     """
+    print("Updating supported publishers")
+    supported_journals = 0
     for publisher_domain in scraper.SUPPORTED_DOMAINS:
         publisher = Publisher.objects.get(domain=publisher_domain)
-        if not publisher.supported:
-            print(publisher.domain)
-            publisher.supported=True
+        n_journals = len(publisher.journals)
+        supported_journals += n_journals
+        print(f"{publisher.domain} with {n_journals} journals is supported")
+        publisher.supported=True
+        publisher.save()
+    for publisher in Publisher.objects.filter(supported=True):
+        if publisher.domain not in scraper.SUPPORTED_DOMAINS:
+            print(publisher.domain, "no longer supported")
+            publisher.supported=False
             publisher.save()
+    print(f"{supported_journals} of a total number of {Journal.objects.count()} journals in database are supported")
         
 def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_results=10000, verbosity='full', logger=None):
     """
@@ -217,7 +226,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         logger.info("Journal has no publisher")
         return
     elif not publisher_Q[0].supported:
-        logger.info("Journal not supported")
+        logger.info(f"{journal.full_name} ({publisher_Q[0].domain}) not supported")
         return
     else:
         publisher = publisher_Q[0]
@@ -240,50 +249,53 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         if verbosity=='full':
             logger.info("Pubmed search failed after 10 retries")
         return
-    articles = []
     counter = 0
     total_count = len(entries)
     any_success = False
+    # get dois of articles already in database
+    prev_dois = [a.doi for a in journal.articles]
     for entry in entries:
         if entry.doi:
             # > a quick fix for a bug in pymed (0.8.9), which sometimes returns a multiline list of dois
             # for a entry. And the first one is the real one
             doi = entry.doi.split('\n')[0]
         else:
-            logger.info("No DOI")
+            if verbosity=='full': logger.info("No DOI")
             continue
-        if Journal.objects.filter(articles__doi=doi).count() == 0: # article does not exist
+        article_str = f'[{journal.abbr_name}] ({counter} of {total_count}): {doi}'
+        if not doi in prev_dois:
+            start = time.time()
             dates = scraper.get_dates(doi, publisher.domain, logger=logger)
-            if any([v is not None for v in dates.values()]): #> the operation has succeeded
+            scraping_time = time.time() - start
+            if any([v is not None for v in dates.values()]): #> scraper has succeeded
                 article = Article(
                     doi=doi,
                     title=entry.title,
-                    authors=[f"{a['lastname']} {a['initials']}" for a in entry.authors],
+                    authors=[f"{a.get('lastname','NoLastname')}, {a.get('firstname', 'NoFirstName')}" for a in entry.authors],
+                    first_affiliation=entry.authors[0].get('affiliation','NoAffiliation') if len(entry.authors)>0 else '',
+                    last_affiliation=entry.authors[-1].get('affiliation','NoAffiliation') if len(entry.authors)>0 else '',
                     received=dates['Received'],
                     accepted=dates['Accepted'],
                     published=dates['Published']
                 )
                 journal.update(push__articles=article)
                 any_success = True
+                if verbosity=='full': logger.info(f'{article_str} ({scraping_time:.2f}s)')
             else:
-                if verbosity=='full':
-                    logger.info('Scraper failed')
+                if verbosity=='full': logger.info(f'{article_str} failed')
                 if (counter+1 > GIVE_UP_LIMIT) and (not any_success):
-                    if verbosity=='full':
-                        logger.info(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
+                    if verbosity=='full': logger.info(f"No success for any of the {GIVE_UP_LIMIT} articles searched")
                     journal.update(set__last_failed=True)
                     return
         else:
-            if verbosity=='full':
-                logger.info("Already in database")
+            if verbosity=='full': logger.info(f'{article_str} already in db')
             any_success = True
         counter+=1
-        if verbosity=='full':
-            logger.info(f'[{journal.abbr_name}] ({counter} of {total_count}): {doi}')
         if (counter%5==0) and (verbosity=='summary'):
             logger.info(counter)
-    journal.update(set__last_failed=False)
-    journal.update(set__last_checked=datetime.datetime.now())
+    if any_success:
+        journal.update(set__last_failed=False)
+        journal.update(set__last_checked=datetime.datetime.now())
 
 def sort_publishers_by_journals_count():
     return (pd.DataFrame(
