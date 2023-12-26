@@ -18,6 +18,15 @@ def datestr_tuple_to_datetime(datestr_tuple, pattern):
             year = int(datestr_tuple[datestr_idx])
     return datetime.datetime(year, month, day)
 
+def pubmed_date_to_datetime(date_element):
+    """
+    Converts a pubmed date element to datetime obj
+    """
+    year = int(date_element.find('Year').text)
+    month = int(date_element.find('Month').text)
+    day = int(date_element.find('Day').text)
+    return datetime.datetime(year, month, day)
+
 def download_file(url, filename=None):
     """
     Downloads a (large) file from url to filename

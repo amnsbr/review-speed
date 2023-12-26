@@ -10,7 +10,7 @@ from helpers import datestr_tuple_to_datetime
 REQUESTS_AGENT_HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0"}
 EVENTS = ['Received', 'Accepted', 'Published']
 DOI_BASE = 'https://doi.org/'
-USE_TLS = ['wiley']
+USE_REQUESTS = []
 
 #TODO: move these to json files
 REGEX_PATTERNS = {
@@ -168,22 +168,26 @@ def get_dates(doi, publisher_domain, logger=None):
     ----------
     dates: (dict) datetime.datetime objs for three events (Received, Accepted, Published)
     """
-    dates = {'Received': None, 'Accepted': None, 'Published': None}
+    #TODO: get revised date
+    dates = {'Received': None, 'Revised': None, 'Accepted': None, 'Published': None}
+    if publisher_domain not in SUPPORTED_DOMAINS:
+        logger.info(f"{publisher_domain} not supported")
+        return dates
     try:
         article_url = get_article_url(doi)
     except:
         logger.info("Unable to parse publisher and article url from the doi")
         return dates
     #> Get the HTML
-    if publisher_domain in USE_TLS:
-        session = tls_client.Session(client_identifier='chrome112', random_tls_extension_order=True)
-    else:
+    if publisher_domain in USE_REQUESTS:
         session = requests.sessions.Session()
+    else:
+        session = tls_client.Session(client_identifier='chrome112', random_tls_extension_order=True)
     try:
-        if publisher_domain in USE_TLS:
-            html = session.get(article_url).content.decode(errors='replace')
-        else:
+        if publisher_domain in USE_REQUESTS:
             html = session.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
+        else:
+            html = session.get(article_url).content.decode(errors='replace')
     except:
         logger.info("Unable to get article url page")
         return dates

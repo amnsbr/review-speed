@@ -18,7 +18,7 @@ logger.addHandler(fh)
 
 UPDATE_INTERVAL = -1 #days
 
-def update(start_year=2022, domain='all'):
+def update(start_year=2023, domain='all', skip_last_failed=False):
     """
     A very long function which updates the review speed database until it
     is not needed and then goes into idle mode. This is executed outside
@@ -32,6 +32,8 @@ def update(start_year=2022, domain='all'):
         logger.info("Writing to db not allowed on this machine")
         return False
     if domain == 'all':
+        publishers = Publisher.objects.all()
+    elif domain == 'supported':
         publishers = Publisher.objects.filter(supported=True)
     else:
         publishers = Publisher.objects.filter(domain=domain)
@@ -44,10 +46,10 @@ def update(start_year=2022, domain='all'):
             #> Update the journal if it is scrapable (last_failed=False) and its data is > UPDATE_INTERVAL days old
             needs_update = (datetime.datetime.now() - journal.last_checked).days > UPDATE_INTERVAL
             if needs_update:
-                if not journal.last_failed:
-                    data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year, logger=logger)
+                if journal.last_failed and skip_last_failed:
+                    logger.info(f'[{journal.abbr_name}] failed last time')
                 else:
-                    logger.info(f'[{journal.abbr_name}] scraping failed last time')
+                    data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year, logger=logger)
             else:
                 logger.info(f'None of {publisher.domain} journals need update')
                 break

@@ -295,12 +295,10 @@ def show_journal_info(journal_abbr, plot_metric, start_date, end_date):
     if journal_abbr:
         #> Get articles df for the journal from db
         journal = Journal.objects.get(abbr_name=journal_abbr)
-        if len(journal.articles) == 0:
-            if journal.last_failed:
-                return [html.H4("Publisher is not supported or dates are not reported")], [], {'display': 'none'}, {'display': 'none'}
-            else:
-                return [html.H4("No data available")], [], {'display': 'none'}, {'display': 'none'}
-        articles_df = pd.DataFrame([article.to_mongo().to_dict() for article in journal.articles])
+        articles = Article.objects.filter(journal=journal).only('received', 'accepted', 'published')
+        if articles.count() == 0:
+            return [html.H4("No data available")], [], {'display': 'none'}, {'display': 'none'}
+        articles_df = pd.DataFrame([article.to_mongo().to_dict() for article in articles])
         articles_df['journal']=journal.abbr_name
         missing_events = []
         for event in ['received', 'accepted', 'published']:
