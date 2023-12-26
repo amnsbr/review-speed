@@ -1,4 +1,5 @@
 import requests
+import tls_client
 import urllib
 from bs4 import BeautifulSoup
 import tldextract
@@ -6,9 +7,10 @@ import datetime
 import re
 from helpers import datestr_tuple_to_datetime
 
-REQUESTS_AGENT_HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36"}
+REQUESTS_AGENT_HEADERS = {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0"}
 EVENTS = ['Received', 'Accepted', 'Published']
 DOI_BASE = 'https://doi.org/'
+USE_TLS = ['wiley']
 
 #TODO: move these to json files
 REGEX_PATTERNS = {
@@ -17,11 +19,11 @@ REGEX_PATTERNS = {
         'Accepted': r'.*Accepted:\n\t\t\t\t([a-zA-Z]+) (\d+), (\d+)',
         'Published': None
     },
-    'sciencedirect': {
-        'Received': r'.*"Received":"(\d+) ([a-zA-Z]+) (\d+)"',
-        'Accepted': r'.*"Accepted":"(\d+) ([a-zA-Z]+) (\d+)"',
-        'Published': r'.*"Publication date":"(\d+) ([a-zA-Z]+) (\d+)"'
-    },
+    # 'sciencedirect': { # currently not supported
+    #     'Received': r'.*"Received":"(\d+) ([a-zA-Z]+) (\d+)"',
+    #     'Accepted': r'.*"Accepted":"(\d+) ([a-zA-Z]+) (\d+)"',
+    #     'Published': r'.*"Publication date":"(\d+) ([a-zA-Z]+) (\d+)"'
+    # },
     'karger': {
         'Received': r'.*Received: ([a-zA-Z]+) (\d+), (\d+)',
         'Accepted': r'.*Accepted: ([a-zA-Z]+) (\d+), (\d+)',
@@ -53,7 +55,12 @@ REGEX_PATTERNS = {
         'Accepted': r'.*accepted: ([a-zA-Z]+) (\d+), (\d+)',
         'Published': r'.*Released: ([a-zA-Z]+) (\d+), (\d+)',
         }
-    ]
+    ],
+    'plos': {
+        'Received': r'.*<strong>Received: </strong>([a-zA-Z]+) (\d+), (\d+)',
+        'Accepted': r'.*<strong>Accepted: </strong>([a-zA-Z]+) (\d+), (\d+)',
+        'Published': r'.*<strong>Published: </strong> ([a-zA-Z]+) (\d+), (\d+)',
+    },
 }
 
 DATESTR_PATTERNS = {
@@ -64,6 +71,7 @@ DATESTR_PATTERNS = {
     'viamedica': 'Ymd',
     'wiley': 'dBY',
     'jst': 'BdY',
+    'plos': 'BdY',
 }
 
 ##########################################################
@@ -167,8 +175,15 @@ def get_dates(doi, publisher_domain, logger=None):
         logger.info("Unable to parse publisher and article url from the doi")
         return dates
     #> Get the HTML
+    if publisher_domain in USE_TLS:
+        session = tls_client.Session(client_identifier='chrome112', random_tls_extension_order=True)
+    else:
+        session = requests.sessions.Session()
     try:
-        html = requests.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
+        if publisher_domain in USE_TLS:
+            html = session.get(article_url).content.decode(errors='replace')
+        else:
+            html = session.get(article_url, headers=REQUESTS_AGENT_HEADERS).content.decode(errors='replace')
     except:
         logger.info("Unable to get article url page")
         return dates
