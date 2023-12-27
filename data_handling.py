@@ -224,24 +224,7 @@ def get_data_pubmed(pmid, verbosity='full', logger=None):
             fetch_succeeded = True
     if not fetch_succeeded:
         if verbosity=='full': logger.info("Pubmed fetch failed after 10 retries")
-        return dates
-    try:
-        date_elements = res_root.find('PubmedArticle').find('PubmedData').find('History').findall('PubMedPubDate')
-    except AttributeError as e:
-        if verbosity=='full': logger.info("No pubmed dates data")
-        return dates
-    published_date_candidates = {}
-    for date_element in date_elements:
-        date_type = date_element.get('PubStatus').title()
-        if date_type in ['Entrez', 'Pubmed', 'Medline']:
-            published_date_candidates[date_type] = pubmed_date_to_datetime(date_element)
-        if date_type in dates:
-            dates[date_type] = pubmed_date_to_datetime(date_element)
-    dates['Published'] = published_date_candidates.get(
-        'Entrez', published_date_candidates.get(
-            'Pubmed', published_date_candidates.get(
-                'Medline', 
-                    None)))
+        return dates, metadata
     # get metadata
     ## doi    
     for articleid_element in res_root.find('PubmedArticle').find('PubmedData').find('ArticleIdList').findall('ArticleId'):
@@ -262,6 +245,23 @@ def get_data_pubmed(pmid, verbosity='full', logger=None):
                 author[author_element_child.tag.lower()] = author_element_child.text
         author['affiliation'] = '; '.join(author['affiliation'])
         metadata['authors'].append(author)
+    try:
+        date_elements = res_root.find('PubmedArticle').find('PubmedData').find('History').findall('PubMedPubDate')
+    except AttributeError as e:
+        if verbosity=='full': logger.info("No pubmed dates data")
+        return dates, metadata
+    published_date_candidates = {}
+    for date_element in date_elements:
+        date_type = date_element.get('PubStatus').title()
+        if date_type in ['Entrez', 'Pubmed', 'Medline']:
+            published_date_candidates[date_type] = pubmed_date_to_datetime(date_element)
+        if date_type in dates:
+            dates[date_type] = pubmed_date_to_datetime(date_element)
+    dates['Published'] = published_date_candidates.get(
+        'Entrez', published_date_candidates.get(
+            'Pubmed', published_date_candidates.get(
+                'Medline', 
+                    None)))
     return dates, metadata
 
 
