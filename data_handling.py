@@ -15,7 +15,7 @@ from helpers import download_file, pubmed_date_to_datetime
 
 SCIMAGOJR_BASE = 'https://www.scimagojr.com/journalrank.php'
 JOURNALS_LIST_PATH = os.path.join('data', 'journals_list.txt')
-GIVE_UP_LIMIT = 10
+GIVE_UP_LIMIT = 15
 
 def search_nlmcatalog(term, retmax=100000):
     #> Search in NLM Catalog using ISSN
