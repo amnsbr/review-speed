@@ -325,6 +325,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         if pmid in prev_pmids:
             if verbosity=='full': logger.info(f'{article_str} already in db')
             counter+=1
+            any_success = True
             continue
         start = time.time()
         # first try pubmed, then journal
