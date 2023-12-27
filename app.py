@@ -223,7 +223,8 @@ def plot_trend(articles_df, plot_metric='Submit to Accept'):
     return graph
 
 #> App base layout
-app.layout = dbc.Container(
+def serve_layout():
+    return dbc.Container(
     [
         dbc.Row([
             dbc.Col(
@@ -244,9 +245,12 @@ app.layout = dbc.Container(
         dbc.Row(html.P('* Median (25th - 75th percentiles) in days'), id="numbers-note", style={"display": "none"}),
         dbc.Row([dbc.Col(plot_metric_formgroup)], id="plot-metric-formgroup", style={"display": "none"}),
         dbc.Row(id='graphs'),
+        dbc.Row(html.P(f'Total number of articles in the database: {Article.objects.count()}')),
     ],
     fluid=False,
 )
+
+app.layout = serve_layout
 
 #> Dynamic dropdown search callback
 @app.callback(
