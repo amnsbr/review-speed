@@ -22,16 +22,13 @@ from models import *
 STATIC_PLOT = True
 SHOW_SCATTER = False
 CACHE_TIMEOUT = 24 * 60 * 60 #seconds
-JOURNALS_LIST_PATH = os.path.join('data', 'journals_list.txt')
+LIST_ALL_JOURNALS = False # list all journals vs only those with articles in the database
 
 
 # Get available journals list
-with open(JOURNALS_LIST_PATH, 'r') as journals_list_file:
-    journals_list = journals_list_file.read().splitlines()
-journal_options = []
-for abbr_name in journals_list:
-    journal_options.append({'label': abbr_name, 'value': abbr_name})
-
+if LIST_ALL_JOURNALS:
+    journals_list = sorted(Journal.objects.only('abbr_name').values_list('abbr_name'))
+# otherwise get the list of journals from the database inside serve_layout()
 
 # App initialization and layout
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -41,48 +38,6 @@ cache = Cache(server, config={
     'CACHE_TYPE': 'FileSystemCache',
     'CACHE_DIR': 'FlaskCaching'
 })
-
-# Define the journal and date selection forms
-form_groups = [
-    dbc.FormGroup(
-        [
-            dbc.Label('Journal Abbreviation'), 
-            html.Form(autoComplete='off', children=
-            [
-                dcc.Dropdown(id="journal-abbr-dropdown")
-            ])
-            
-        ]),
-    dbc.FormGroup(
-        [
-            dbc.Label('Date Range'), 
-            dcc.DatePickerRange(
-                id='date-picker-range',
-                min_date_allowed=datetime.date(1970, 1, 1),
-                max_date_allowed=datetime.date.today() + datetime.timedelta(365),
-                initial_visible_month=datetime.date.today(),
-            ),
-        ]),
-]
-
-plot_metric_formgroup = dbc.FormGroup(
-    [
-        dbc.Label('Plot Metric'), 
-        html.Form(autoComplete='off', children=
-        [
-            dcc.Dropdown(
-                id="plot-metric-dropdown",
-                options=[
-                    {'label': 'Submit to Accept', 'value': 'Submit to Accept'},
-                    {'label': 'Accept to Publish', 'value': 'Accept to Publish'},
-                    {'label': 'Submit to Publish', 'value': 'Submit to Publish'},
-                ],
-                value='Submit to Accept',
-                searchable=False,
-                clearable=False,
-            )
-        ])        
-    ]),
 
 
 
@@ -224,6 +179,60 @@ def plot_trend(articles_df, plot_metric='Submit to Accept'):
 
 #> App base layout
 def serve_layout():
+    # on every reload, get available journals list
+    # if not LIST_ALL_JOURNALS
+    # the journal list update is put here to enforce
+    # running it on every reload
+    global journals_list
+    if not LIST_ALL_JOURNALS:
+        # Get available journals list
+        journals_list = sorted([journal.abbr_name for journal in Article.objects.distinct('journal')])
+    journal_options = []
+    for abbr_name in journals_list:
+        journal_options.append({'label': abbr_name, 'value': abbr_name})
+    # and return the layout
+    # Define the journal and date selection forms
+    if not LIST_ALL_JOURNALS:
+        journals_dropdown = dcc.Dropdown(id="journal-abbr-dropdown", options=journal_options)
+    else:
+        journals_dropdown = dcc.Dropdown(id="journal-abbr-dropdown")
+    form_groups = [
+        dbc.FormGroup(
+            [
+                dbc.Label('Journal Abbreviation'), 
+                html.Form(autoComplete='off', children=[journals_dropdown])
+                
+            ]),
+        dbc.FormGroup(
+            [
+                dbc.Label('Date Range'), 
+                dcc.DatePickerRange(
+                    id='date-picker-range',
+                    min_date_allowed=datetime.date(1970, 1, 1),
+                    max_date_allowed=datetime.date.today() + datetime.timedelta(365),
+                    initial_visible_month=datetime.date.today(),
+                ),
+            ]),
+    ]
+
+    plot_metric_formgroup = dbc.FormGroup(
+        [
+            dbc.Label('Plot Metric'), 
+            html.Form(autoComplete='off', children=
+            [
+                dcc.Dropdown(
+                    id="plot-metric-dropdown",
+                    options=[
+                        {'label': 'Submit to Accept', 'value': 'Submit to Accept'},
+                        {'label': 'Accept to Publish', 'value': 'Accept to Publish'},
+                        {'label': 'Submit to Publish', 'value': 'Submit to Publish'},
+                    ],
+                    value='Submit to Accept',
+                    searchable=False,
+                    clearable=False,
+                )
+            ])        
+        ]),
     return dbc.Container(
     [
         dbc.Row([
