@@ -226,7 +226,8 @@ def get_data_pubmed(pmid, verbosity='full', logger=None):
         if verbosity=='full': logger.info("Pubmed fetch failed after 10 retries")
         return dates, metadata
     # get metadata
-    ## doi    
+    ## doi  
+    metadata['doi'] = ''  
     for articleid_element in res_root.find('PubmedArticle').find('PubmedData').find('ArticleIdList').findall('ArticleId'):
         if articleid_element.get("IdType")=="doi":
             metadata['doi'] = articleid_element.text
@@ -316,6 +317,8 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
     prev_articles = Article.objects.filter(journal=journal)
     prev_pmids = [a.pmid for a in prev_articles]
     prev_dois = [a.doi for a in prev_articles]
+    if '' in prev_dois:
+        prev_dois.remove('')
     counter = 0
     failed = 0
     total_count = len(pmids)
@@ -338,7 +341,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
             continue
         # now we have the doi and can skip the article based on doi
         # (as some articles only have doi and no pmid)
-        if (metadata['doi'] in prev_dois):
+        if (metadata.get('doi','') in prev_dois):
             if verbosity=='full': logger.info(f'{article_str} already in db')
             counter+=1
             # add pmid
@@ -349,18 +352,19 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         # if pubmed has no dates data, try journal
         if not ((dates['Received'] is not None) & any([v is not None for v in ['Accepted', 'Published']])):
             where = 'journal'
-            dates = scraper.get_dates(metadata['doi'], publisher.domain, logger=logger)
+            if 'doi' in metadata:
+                dates = scraper.get_dates(metadata['doi'], publisher.domain, logger=logger)
         elapsed = time.time() - start
         # if either pubmed or journal has dates data, add the article to db
         if (dates['Received'] is not None) & any([v is not None for v in ['Accepted', 'Published']]):
             article = Article(
-                doi=metadata['doi'],
+                doi=metadata.get('doi',''),
                 pmid=pmid,
-                title=metadata['title'],
-                first_author=f"{metadata['authors'][0].get('lastname','NoLastname')}, {metadata['authors'][0].get('forename', 'NoForeName')}" if len(metadata['authors'])>0 else '',
-                last_author=f"{metadata['authors'][-1].get('lastname','NoLastname')}, {metadata['authors'][-1].get('forename', 'NoForeName')}" if len(metadata['authors'])>0 else '',
-                first_affiliation=metadata['authors'][0].get('affiliation','NoAffiliation') if len(metadata['authors'])>0 else '',
-                last_affiliation=metadata['authors'][-1].get('affiliation','NoAffiliation') if len(metadata['authors'])>0 else '',
+                title=metadata.get('title',''),
+                first_author=f"{metadata['authors'][0].get('lastname','NoLastname')}, {metadata['authors'][0].get('forename', 'NoForeName')}" if len(metadata.get('authors', []))>0 else '',
+                last_author=f"{metadata['authors'][-1].get('lastname','NoLastname')}, {metadata['authors'][-1].get('forename', 'NoForeName')}" if len(metadata.get('authors', []))>0 else '',
+                first_affiliation=metadata['authors'][0].get('affiliation','NoAffiliation') if len(metadata.get('authors', []))>0 else '',
+                last_affiliation=metadata['authors'][-1].get('affiliation','NoAffiliation') if len(metadata.get('authors', []))>0 else '',
                 received=dates['Received'],
                 accepted=dates['Accepted'],
                 published=dates['Published'],
