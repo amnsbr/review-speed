@@ -183,17 +183,21 @@ def serve_layout():
     # if not LIST_ALL_JOURNALS
     # the journal list update is put here to enforce
     # running it on every reload
-    global journals_list
+    global journals_list, journal_options
     if not LIST_ALL_JOURNALS:
         # Get available journals list
         journals_list = sorted([journal.abbr_name for journal in Article.objects.distinct('journal')])
     journal_options = []
     for abbr_name in journals_list:
         journal_options.append({'label': abbr_name, 'value': abbr_name})
-    # and return the layout
-    # Define the journal and date selection forms
+    # Construct the layout
+    # top panel: define the journal and date selection forms
+    ## journal list is shown in dropdown if only available journals are listed
+    ## otherwise, the journals are shown only in response to search
+    stats_str = f'Total number of articles in the database: {Article.objects.count()}'
     if not LIST_ALL_JOURNALS:
         journals_dropdown = dcc.Dropdown(id="journal-abbr-dropdown", options=journal_options)
+        stats_str += f' (from {len(journals_list)} journals)'
     else:
         journals_dropdown = dcc.Dropdown(id="journal-abbr-dropdown")
     form_groups = [
@@ -214,7 +218,8 @@ def serve_layout():
                 ),
             ]),
     ]
-
+    # bottom panel: data of the selected journal will be shown with callback
+    # (is empty at the beginning)
     plot_metric_formgroup = dbc.FormGroup(
         [
             dbc.Label('Plot Metric'), 
@@ -233,31 +238,33 @@ def serve_layout():
                 )
             ])        
         ]),
-    return dbc.Container(
-    [
-        dbc.Row([
-            dbc.Col(
-                html.H2('Review Speed Analytics', style={"margin-top": 15}),
-                md=9),
-            dbc.Col(
-                html.A(
-                    html.Img(
-                        src='https://github.githubassets.com/images/modules/site/icons/footer/github-mark.svg', 
-                        style={"float": "right", "height": 35, "margin-top": 20}),
-                    href='https://github.com/amnsbr/review-speed'),
-                md=3)
-        ]),
-        html.Hr(),
-        dbc.Row([dbc.Col(form_group) for form_group in form_groups]),
-        html.Hr(),
-        dbc.Row(id='summary-cards'),
-        dbc.Row(html.P('* Median (25th - 75th percentiles) in days'), id="numbers-note", style={"display": "none"}),
-        dbc.Row([dbc.Col(plot_metric_formgroup)], id="plot-metric-formgroup", style={"display": "none"}),
-        dbc.Row(id='graphs'),
-        dbc.Row(html.P(f'Total number of articles in the database: {Article.objects.count()}')),
-    ],
-    fluid=False,
-)
+    # put it all together + some constant rows
+    layout = dbc.Container(
+        [
+            dbc.Row([
+                dbc.Col(
+                    html.H2('Review Speed Analytics', style={"margin-top": 15}),
+                    md=9),
+                dbc.Col(
+                    html.A(
+                        html.Img(
+                            src='https://github.githubassets.com/images/modules/site/icons/footer/github-mark.svg', 
+                            style={"float": "right", "height": 35, "margin-top": 20}),
+                        href='https://github.com/amnsbr/review-speed'),
+                    md=3)
+            ]),
+            html.Hr(),
+            dbc.Row([dbc.Col(form_group) for form_group in form_groups]),
+            html.Hr(),
+            dbc.Row(id='summary-cards'),
+            dbc.Row(html.P('* Median (25th - 75th percentiles) in days'), id="numbers-note", style={"display": "none"}),
+            dbc.Row([dbc.Col(plot_metric_formgroup)], id="plot-metric-formgroup", style={"display": "none"}),
+            dbc.Row(id='graphs'),
+            dbc.Row(html.P(stats_str)),
+        ],
+        fluid=False
+    )
+    return layout
 
 app.layout = serve_layout
 
