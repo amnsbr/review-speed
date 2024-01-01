@@ -1,11 +1,11 @@
-from models import *
-import data_handling
-
 import datetime
 import gc
 import time
-
 import logging
+
+from models import *
+import data_handling
+
 
 logger = logging.getLogger('main_logger')
 logger.setLevel(logging.INFO)
@@ -44,14 +44,15 @@ def update(start_year=2023, end_year=None, domain='all', subject_term=None, skip
         parents = Publisher.objects.filter(supported=True)
     else:
         parents = Publisher.objects.filter(domain=domain)
+    parents = list(parents) # to avoid CursorNotFound error
     for parent in parents:
         if parent_type == 'publisher':
             parent_name = parent.domain
         else:
             parent_name = parent.name
-        logger.info(f'[{parent_name}]')
+        logger.info(f'[{parent_type}: {parent_name}]')
         #> Get all journals of the publisher
-        journals = parent.journals
+        journals = list(parent.journals) # list to avoid CursorNotFound error
         for journal in journals:
             logger.info(f'[{journal.abbr_name}]')
             #> Update the journal if it is scrapable (last_failed=False) and its data is > UPDATE_INTERVAL days old
@@ -69,10 +70,10 @@ def update(start_year=2023, end_year=None, domain='all', subject_term=None, skip
             time.sleep(1)
 
 if __name__ == '__main__':
-    for subject_term in [
-        'Behavioral Sciences', 'Brain', 'Diagnostic Imaging', 
-        'Neurology', 'Neurosurgery', 'Psychiatry', 'Psychology',
-        'Psychopathology', 'Psychopharmacology', 'Psychophysiology',
-        'Radiology', 'Science'
-        ]:
-        update(start_year=2023, end_year=2023, domain=None, subject_term=subject_term, skip_last_failed=True)
+    # for subject_term in [
+    #     'Behavioral Sciences', 'Brain', 'Diagnostic Imaging', 
+    #     'Neurology', 'Neurosurgery', 'Psychiatry', 'Psychology',
+    #     'Psychopathology', 'Psychopharmacology', 'Psychophysiology',
+    #     'Radiology', 'Science'
+    #     ]:
+    update(start_year=2023, end_year=2023, domain=None, subject_term='all', skip_last_failed=True)
