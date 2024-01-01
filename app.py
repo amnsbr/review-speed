@@ -278,7 +278,7 @@ def update_options(search_value):
     Callback handling journal name search autocomplete
     """
     if not search_value:
-        raise dash.exceptions.PreventUpdate
+        return journal_options
     return [o for o in journal_options if search_value.lower() in o["label"].lower()]
 
 # > Journal info view callback
