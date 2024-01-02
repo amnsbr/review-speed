@@ -62,9 +62,6 @@ def update(start_year=2023, end_year=None, domain='all', subject_term=None, skip
                     logger.info(f'[{journal.abbr_name}] failed last time')
                 else:
                     data_handling.fetch_journal_articles_data(journal.abbr_name, start_year=start_year, end_year=end_year, logger=logger)
-            else:
-                logger.info(f'None of {parent_name} journals need update')
-                break
             #> Clear the memory and wait 1 sec before going to the next journal
             gc.collect()
             time.sleep(1)
