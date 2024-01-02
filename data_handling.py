@@ -335,7 +335,7 @@ def fetch_journal_articles_data(journal_abbr, start_year=0, end_year=None, max_r
         where = 'pubmed'
         try:
             dates, metadata = get_data_pubmed(pmid, verbosity=verbosity, logger=logger)
-        except AttributeError as e:
+        except AttributeError or TypeError:
             if verbosity=='full': logger.info(f'{article_str} missing pubmed metadata')
             counter+=1
             continue
